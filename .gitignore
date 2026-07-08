@@ -1,0 +1,114 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Poetry / Hatch
+.pdm.toml
+.python-version
+
+# Node
+node_modules/
+.next/
+.npm/
+.yarn/
+yarn-error.log
+yarn-debug.log
+pnpm-lock.yaml
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+.env.staging
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.dmg
+*.app
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+access.log
+error.log
+
+# Coverage
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+coverage.xml
+*.coverage
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+alembic/versions/*.py
+!alembic/versions/__init__.py
+
+# Docker
+.dockerignore
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Testing
+.coverage
+coverage/
+.tox/
+nosetests.xml
+junit.xml
+
+# Uploads
+uploads/
+media/
+staticfiles/
+
+# IDE
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+
+# Misc
+.cache/
+.ccls-cache/
+.autoenv
+*.bak
+*.tmp

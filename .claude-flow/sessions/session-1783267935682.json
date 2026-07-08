@@ -1,0 +1,14 @@
+{
+  "id": "session-1783267935682",
+  "startedAt": "2026-07-05T16:12:15.682Z",
+  "cwd": "/home/aarav/ProjectLens-AI",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-07-05T16:12:31.322Z",
+  "duration": 15640
+}

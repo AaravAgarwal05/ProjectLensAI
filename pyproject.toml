@@ -1,0 +1,113 @@
+[build-system]
+requires = ["hatchling", "hatch-monorepo"]
+build-backend = "hatchling.build"
+
+[project]
+name = "projectlens-ai"
+version = "0.1.0"
+description = "Production-grade document analysis platform"
+requires-python = ">=3.12"
+authors = [
+    {name = "ProjectLens AI Team", email = "team@projectlens.ai"},
+]
+license = {text = "MIT"}
+readme = "README.md"
+keywords = ["document", "analysis", "ai", "nlp", "ocr"]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "hatchling>=1.21.0",
+    "hatch-monorepo>=0.1.0",
+]
+
+[project.urls]
+homepage = "https://projectlens.ai"
+repository = "https://github.com/projectlens-ai/projectlens"
+documentation = "https://docs.projectlens.ai"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "packages/core/src",
+    "packages/shared/src",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["apps", "packages"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "D", "UP", "YTT", "B", "SIM", "ARG", "PTH", "PL", "FURB"]
+ignore = ["D203", "D212", "D213", "D415"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["D", "F401"]
+"tests/*" = ["D", "ARG"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.venv
+    | node_modules
+    | \.next
+    | dist
+    | build
+    | migrations
+)/
+'''
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests/*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = [
+    "apps/backend/tests",
+    "packages/core/tests",
+    "packages/shared/tests",
+]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*", "*_test"]
+addopts = "-v --tb=short --strict-markers"
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["apps", "packages"]
+omit = ["*/tests/*", "*/__init__.py"]

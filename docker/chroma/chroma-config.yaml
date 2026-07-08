@@ -1,0 +1,4 @@
+persist_directory: /chroma/chroma-data
+anonymized_telemetry: false
+allow_reset: true
+is_persistent: true

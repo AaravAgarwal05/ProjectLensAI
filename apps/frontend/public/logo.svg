@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <!-- Outer lens circle -->
+  <circle cx="16" cy="16" r="14" stroke="#3b82f6" stroke-width="2.5" fill="none"/>
+  <!-- Inner lens -->
+  <ellipse cx="16" cy="16" rx="7" ry="5" fill="#3b82f6" opacity="0.15" stroke="#3b82f6" stroke-width="1.5"/>
+  <!-- Pupil -->
+  <circle cx="16" cy="16" r="2.5" fill="#3b82f6"/>
+  <!-- Highlight sparkle -->
+  <circle cx="19" cy="12" r="1.5" fill="#60a5fa" opacity="0.6"/>
+  <!-- Bottom line (document) -->
+  <line x1="10" y1="24" x2="22" y2="24" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="12" y1="27" x2="20" y2="27" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <!-- Analysis beam -->
+  <line x1="16" y1="21" x2="16" y2="18" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+  <line x1="13" y1="21.5" x2="14" y2="19" stroke="#3b82f6" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+  <line x1="19" y1="21.5" x2="18" y2="19" stroke="#3b82f6" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+</svg>
