@@ -82,7 +82,7 @@ nvidia-cusparselt-cu13==0.8.1
 nvidia-nccl-cu13==2.29.7
 nvidia-nvjitlink==13.2.78
 nvidia-nvshmem-cu13==3.4.5
-nvidia-nvtx==13.2.75
+nvidia-nvtx==13.3.29
 openai==2.44.0
 opentelemetry-api==1.43.0
 opentelemetry-sdk==1.43.0
