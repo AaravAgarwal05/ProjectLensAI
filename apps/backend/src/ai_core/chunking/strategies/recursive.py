@@ -23,7 +23,7 @@ from shared.models.processing import ParsedDocument
 
 from src.ai_core.chunking.base import ChunkingStrategy
 from src.ai_core.chunking.configuration import ChunkingConfiguration
-from src.ai_core.chunking.models import Chunk, ChunkMetadata, ChunkingResult
+from src.ai_core.chunking.models import Chunk, ChunkingResult, ChunkMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -102,32 +102,31 @@ class RecursiveChunker(ChunkingStrategy):
         chunks: list[Chunk] = []
         offset = 0
 
-        for i, seg in enumerate(raw_segments):
+        for seg in raw_segments:
             seg_text = seg.strip() if cfg.strip_whitespace else seg
             if not seg_text:
                 offset += len(seg)
                 continue
 
-            if len(seg_text) < cfg.min_chunk_size:
-                # Merge tiny chunks into previous chunk if possible
-                if chunks:
-                    prev = chunks.pop()
-                    merged_text = prev.text + "\n" + seg_text
-                    merged_text = merged_text.strip()
-                    merged_chunk = Chunk(
-                        chunk_index=prev.chunk_index,
-                        report_id=prev.report_id,
-                        report_version_id=prev.report_version_id,
-                        start_offset=prev.start_offset,
-                        end_offset=offset + len(seg),
-                        text=merged_text,
-                        token_count=_estimate_tokens(merged_text),
-                        page_number=prev.page_number,
-                        metadata=prev.metadata,
-                    )
-                    chunks.append(merged_chunk)
-                    offset += len(seg)
-                    continue
+            if len(seg_text) < cfg.min_chunk_size and chunks:
+                # Merge tiny chunks into previous chunk
+                prev = chunks.pop()
+                merged_text = prev.text + "\n" + seg_text
+                merged_text = merged_text.strip()
+                merged_chunk = Chunk(
+                    chunk_index=prev.chunk_index,
+                    report_id=prev.report_id,
+                    report_version_id=prev.report_version_id,
+                    start_offset=prev.start_offset,
+                    end_offset=offset + len(seg),
+                    text=merged_text,
+                    token_count=_estimate_tokens(merged_text),
+                    page_number=prev.page_number,
+                    metadata=prev.metadata,
+                )
+                chunks.append(merged_chunk)
+                offset += len(seg)
+                continue
 
             page = self._estimate_page(document, offset)
             metadata = ChunkMetadata(
@@ -283,5 +282,5 @@ class RecursiveChunker(ChunkingStrategy):
         for page in document.pages:
             cumulative += len(page.content)
             if offset < cumulative:
-                return page.number
-        return document.pages[-1].number
+                return page.number  # type: ignore[no-any-return]
+        return document.pages[-1].number  # type: ignore[no-any-return]

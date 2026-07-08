@@ -16,7 +16,7 @@ from shared.models.processing import ParsedDocument
 
 from src.ai_core.chunking.base import ChunkingStrategy
 from src.ai_core.chunking.configuration import ChunkingConfiguration
-from src.ai_core.chunking.models import Chunk, ChunkMetadata, ChunkingResult
+from src.ai_core.chunking.models import Chunk, ChunkingResult, ChunkMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -171,5 +171,5 @@ class FixedChunker(ChunkingStrategy):
         for page in document.pages:
             cumulative += len(page.content)
             if offset < cumulative:
-                return page.number
-        return document.pages[-1].number
+                return page.number  # type: ignore[no-any-return]
+        return document.pages[-1].number  # type: ignore[no-any-return]

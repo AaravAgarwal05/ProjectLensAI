@@ -1,7 +1,6 @@
 """Application settings loaded from environment variables."""
 
 from functools import lru_cache
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -37,7 +36,7 @@ class AppSettings(BaseSettings):
     ALLOWED_EXTENSIONS: list[str] = [".pdf", ".docx"]
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     # Logging
     LOG_LEVEL: str = "DEBUG"

@@ -1,10 +1,9 @@
 """Central registry for AI plugins — chunkers, embedders, retrievers, LLMs."""
 
 import logging
-from typing import Any
 
-from src.ai_core.chunking.base import BaseChunker
-from src.ai_core.embedding.base import BaseEmbeddingProvider
+from src.ai_core.chunking.base import ChunkingStrategy
+from src.ai_core.embedding.base import EmbeddingProvider
 from src.ai_core.llm.base import BaseLLMProvider
 from src.ai_core.retrieval.base import BaseRetriever
 
@@ -19,18 +18,18 @@ class AIPluginRegistry:
     """
 
     def __init__(self) -> None:
-        self._chunkers: dict[str, BaseChunker] = {}
-        self._embedders: dict[str, BaseEmbeddingProvider] = {}
+        self._chunkers: dict[str, ChunkingStrategy] = {}
+        self._embedders: dict[str, EmbeddingProvider] = {}
         self._retrievers: dict[str, BaseRetriever] = {}
         self._llms: dict[str, BaseLLMProvider] = {}
 
     # ---- chunkers ----
 
-    def register_chunker(self, name: str, chunker: BaseChunker) -> None:
+    def register_chunker(self, name: str, chunker: ChunkingStrategy) -> None:
         self._chunkers[name] = chunker
         logger.debug("Registered chunker '%s'", name)
 
-    def get_chunker(self, name: str) -> BaseChunker:
+    def get_chunker(self, name: str) -> ChunkingStrategy:
         if name not in self._chunkers:
             msg = f"Unknown chunker: '{name}'"
             raise KeyError(msg)
@@ -38,11 +37,11 @@ class AIPluginRegistry:
 
     # ---- embedders ----
 
-    def register_embedder(self, name: str, embedder: BaseEmbeddingProvider) -> None:
+    def register_embedder(self, name: str, embedder: EmbeddingProvider) -> None:
         self._embedders[name] = embedder
         logger.debug("Registered embedder '%s'", name)
 
-    def get_embedder(self, name: str) -> BaseEmbeddingProvider:
+    def get_embedder(self, name: str) -> EmbeddingProvider:
         if name not in self._embedders:
             msg = f"Unknown embedder: '{name}'"
             raise KeyError(msg)

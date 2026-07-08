@@ -1,7 +1,7 @@
 """Custom middleware registration for the FastAPI application."""
 
-import time
 import logging
+import time
 
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware

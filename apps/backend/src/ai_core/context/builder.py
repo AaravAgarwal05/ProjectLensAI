@@ -1,9 +1,8 @@
 """Context builder — assembles retrieved chunks into a single context string."""
 
 import logging
-from typing import Any
 
-from src.ai_core.chunking.base import DocumentChunk
+from shared.models.document import DocumentChunk
 
 logger = logging.getLogger(__name__)
 

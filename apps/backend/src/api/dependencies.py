@@ -1,12 +1,11 @@
 """FastAPI dependency injection functions."""
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.settings import AppSettings, get_settings
 from src.database.session import async_session_factory
 
 _security_scheme = HTTPBearer(auto_error=False)

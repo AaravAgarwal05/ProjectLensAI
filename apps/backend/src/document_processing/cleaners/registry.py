@@ -4,8 +4,9 @@ Use the registry to compose a ``CleaningPipeline`` from named cleaners
 at runtime.
 """
 
+import builtins
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from src.document_processing.exceptions import CleanerNotFoundError
 
@@ -35,8 +36,8 @@ class CleanerRegistry:
     """
 
     def __init__(self) -> None:
-        self._classes: dict[str, type["TextCleaner"]] = {}
-        self._instances: dict[str, "TextCleaner"] = {}
+        self._classes: dict[str, type[TextCleaner]] = {}
+        self._instances: dict[str, TextCleaner] = {}
 
     # -- public interface ---------------------------------------------------
 
@@ -67,11 +68,11 @@ class CleanerRegistry:
             self._instances[normalised] = cls()
         return self._instances[normalised]
 
-    def list(self) -> List[str]:
+    def list(self) -> list[str]:
         """Return all registered cleaner names in insertion-friendly order."""
         return list(self._classes.keys())
 
-    def create_pipeline(self, names: List[str]) -> "CleaningPipeline":
+    def create_pipeline(self, names: builtins.list[str]) -> "CleaningPipeline":
         """Return a ``CleaningPipeline`` composed of cleaners in *names* order.
 
         Raises ``CleanerNotFoundError`` if any name is not registered.

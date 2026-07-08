@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from shared.models.processing import (
     DocumentMetadata,
@@ -11,6 +11,7 @@ from shared.models.processing import (
     ProcessingStatistics,
     ProcessingWarning,
 )
+
 from src.document_processing.exceptions import ParseError
 from src.document_processing.parsers.base import BaseParser
 
@@ -170,6 +171,6 @@ def _utc_from_naive(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     try:
-        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
     except (ValueError, AttributeError, OverflowError):
         return None

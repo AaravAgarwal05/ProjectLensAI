@@ -101,4 +101,4 @@ class ChunkingFactory:
 
     def available_strategies(self) -> list[str]:
         """Return the list of registered strategy names."""
-        return self._registry.list()
+        return self._registry.list_names()

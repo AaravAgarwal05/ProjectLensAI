@@ -8,9 +8,7 @@ Supports batch embedding, device configuration, and L2 normalisation.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
-
-import numpy as np
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -55,7 +53,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         """Lazy-loaded SentenceTransformer model."""
         if self._model is None:
             self._load_model()
-        return self._model  # type: ignore[return-value]  # _model set by _load_model
+        return cast(SentenceTransformer, self._model)
 
     def _load_model(self) -> None:
         """Load the SentenceTransformer model."""
@@ -94,19 +92,23 @@ class SentenceTransformerProvider(EmbeddingProvider):
 
     async def embed(self, text: str) -> list[float]:
         """Embed a single text string."""
+        import numpy as np
+
         embedding = self.model.encode(
             text,
             normalize_embeddings=self._normalize,
             show_progress_bar=False,
         )
         if isinstance(embedding, np.ndarray):
-            return embedding.tolist()
+            return embedding.tolist()  # type: ignore[no-any-return]
         if isinstance(embedding, list):
             return embedding
         return list(embedding)
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts."""
+        import numpy as np
+
         if not texts:
             return []
 

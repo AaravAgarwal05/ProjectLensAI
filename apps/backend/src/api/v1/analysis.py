@@ -1,6 +1,5 @@
 """Analysis / insight endpoints."""
 
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel

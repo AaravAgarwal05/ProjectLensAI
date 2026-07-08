@@ -3,7 +3,8 @@
 import hashlib
 import logging
 import uuid
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import UploadFile

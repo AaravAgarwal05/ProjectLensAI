@@ -10,6 +10,7 @@ from shared.models.processing import (
     ParsedDocument,
     ProcessingStatistics,
 )
+
 from src.document_processing.parsers.base import BaseParser
 
 logger = logging.getLogger(__name__)

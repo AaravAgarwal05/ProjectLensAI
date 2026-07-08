@@ -2,12 +2,11 @@
 
 import logging
 import sys
-from typing import Optional
 
 from src.config.settings import get_settings
 
 
-def configure_logging(level: Optional[str] = None) -> None:
+def configure_logging(level: str | None = None) -> None:
     """Configure structured logging with a console handler.
 
     Args:

@@ -130,3 +130,11 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/vector_store/indexing.py","timestamp":1783549277684,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/vector_store/providers/chroma_store.py","timestamp":1783549297227,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/vector_store/providers/chroma_store.py","timestamp":1783549302226,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/chunking/hooks.py","timestamp":1783549993093,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/chunking/strategies/recursive.py","timestamp":1783550004851,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/chunking/strategies/heading_aware.py","timestamp":1783550012228,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/chunking/strategies/fixed.py","timestamp":1783550023780,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1783550168657,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1783550177326,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1783550183364,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1783550211701,"sessionId":null}

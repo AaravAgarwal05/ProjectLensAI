@@ -19,9 +19,7 @@ from typing import Any
 
 from shared.models.processing import ParsedDocument
 
-from src.ai_core.chunking.base import ChunkingStrategy
 from src.ai_core.chunking.configuration import ChunkingConfiguration
-from src.ai_core.chunking.exceptions import DocumentEmptyError
 from src.ai_core.chunking.factory import ChunkingFactory
 from src.ai_core.chunking.hooks import HookRegistry
 from src.ai_core.chunking.models import ChunkingResult

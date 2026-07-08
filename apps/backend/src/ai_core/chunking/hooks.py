@@ -11,9 +11,10 @@ Allows registering callbacks that fire at specific lifecycle events:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
 
 from shared.models.processing import ParsedDocument
 
@@ -22,7 +23,7 @@ from src.ai_core.chunking.models import ChunkingResult
 logger = logging.getLogger(__name__)
 
 
-class HookEvent(str, Enum):
+class HookEvent(StrEnum):
     """Lifecycle events that hooks can attach to."""
 
     BEFORE_CHUNKING = "before_chunking"
@@ -128,15 +129,15 @@ class HookRegistry:
 
     def run_after_chunking(self, result: ChunkingResult) -> ChunkingResult:
         """Run all ``AFTER_CHUNKING`` hooks."""
-        return self._run(HookEvent.AFTER_CHUNKING, result)
+        return self._run(HookEvent.AFTER_CHUNKING, result)  # type: ignore[no-any-return]
 
     def run_before_validation(self, result: ChunkingResult) -> ChunkingResult:
         """Run all ``BEFORE_VALIDATION`` hooks."""
-        return self._run(HookEvent.BEFORE_VALIDATION, result)
+        return self._run(HookEvent.BEFORE_VALIDATION, result)  # type: ignore[no-any-return]
 
     def run_after_validation(self, result: ChunkingResult) -> ChunkingResult:
         """Run all ``AFTER_VALIDATION`` hooks."""
-        return self._run(HookEvent.AFTER_VALIDATION, result)
+        return self._run(HookEvent.AFTER_VALIDATION, result)  # type: ignore[no-any-return]
 
     def _run(self, event: HookEvent, arg: Any) -> Any:
         """Execute all hooks for *event* in registration order."""

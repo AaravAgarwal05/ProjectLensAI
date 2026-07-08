@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from shared.models.processing import (
@@ -12,6 +12,7 @@ from shared.models.processing import (
     ProcessingStatistics,
     ProcessingWarning,
 )
+
 from src.document_processing.exceptions import ParseError
 from src.document_processing.parsers.base import BaseParser
 
@@ -202,7 +203,7 @@ def _try_parse_pdf_date(date_str: str | None) -> datetime | None:
             int(cleaned[8:10]),
             int(cleaned[10:12]),
             int(cleaned[12:14]),
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
         return dt
     except (ValueError, IndexError):

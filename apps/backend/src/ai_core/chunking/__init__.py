@@ -18,7 +18,7 @@ from src.ai_core.chunking.exceptions import (
 )
 from src.ai_core.chunking.factory import ChunkingFactory
 from src.ai_core.chunking.hooks import ChunkingHook, HookEvent, HookRegistry
-from src.ai_core.chunking.models import Chunk, ChunkMetadata, ChunkStatistics, ChunkingResult
+from src.ai_core.chunking.models import Chunk, ChunkingResult, ChunkMetadata, ChunkStatistics
 from src.ai_core.chunking.pipeline import ChunkingPipeline
 from src.ai_core.chunking.registry import ChunkingRegistry
 from src.ai_core.chunking.validation import ValidationEngine, ValidationResult

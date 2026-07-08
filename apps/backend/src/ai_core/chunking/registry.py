@@ -95,10 +95,10 @@ class ChunkingRegistry:
                 f"Available: {list(self._classes)}"
             )
         if normalised not in self._instances:
-            self._instances[normalised] = cls(**kwargs)  # type: ignore[call-arg]
+            self._instances[normalised] = cls(**kwargs)
         return self._instances[normalised]
 
-    def list(self) -> list[str]:
+    def list_names(self) -> list[str]:
         """Return all registered chunker names."""
         return list(self._classes.keys())
 

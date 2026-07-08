@@ -8,7 +8,8 @@ document.
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import UUID, uuid4
+from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -36,7 +37,7 @@ class ChunkMetadata(BaseModel):
     document_title: str | None = None
     document_author: str | None = None
     language: str | None = None
-    extra: dict = Field(default_factory=dict)
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class Chunk(BaseModel):

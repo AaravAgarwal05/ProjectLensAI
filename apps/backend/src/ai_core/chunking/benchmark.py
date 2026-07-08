@@ -19,7 +19,6 @@ import logging
 import statistics
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 from shared.models.processing import ParsedDocument
 
@@ -76,12 +75,12 @@ class BenchmarkReport:
             f"Benchmark: {self.strategy_name}",
             f"  Iterations:      {self.iterations}",
             f"  Document length: {self.document_length} chars",
-            f"  Timing:",
+            "  Timing:",
             f"    Mean:   {self.mean_time:.4f}s",
             f"    StdDev: {self.std_dev_time:.4f}s",
             f"    Min:    {self.min_time:.4f}s",
             f"    Max:    {self.max_time:.4f}s",
-            f"  Chunks:",
+            "  Chunks:",
             f"    Mean count:     {self.mean_chunk_count:.1f}",
             f"    Mean size:      {self.overall_avg_chunk_size:.1f} chars",
             f"    Largest:        {self.overall_largest_chunk} chars",

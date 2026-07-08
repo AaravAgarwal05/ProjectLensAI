@@ -21,8 +21,8 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession

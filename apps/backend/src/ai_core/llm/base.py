@@ -1,7 +1,8 @@
 """Abstract LLM provider interface."""
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 
 class BaseLLMProvider(ABC):

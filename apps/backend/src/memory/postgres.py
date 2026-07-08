@@ -1,10 +1,9 @@
 """Postgres-backed memory provider."""
 
-import json
 import logging
 from typing import Any
 
-from sqlalchemy import Column, DateTime, Integer, String, Text, func, select, text
+from sqlalchemy import Column, DateTime, Integer, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -34,7 +34,7 @@ class ParserRegistry(UserDict[str, type["BaseParser"]]):
 
     def __init__(self) -> None:
         super().__init__()
-        self._instances: dict[str, "BaseParser"] = {}
+        self._instances: dict[str, BaseParser] = {}
 
     # -- public interface ---------------------------------------------------
 
