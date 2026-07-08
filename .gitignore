@@ -125,3 +125,8 @@ storage/
 *.secret
 secrets/
 tokens/
+
+# ── Agents / Crawlers ─────────────────────────────────────
+.claude/
+.claude-flow/
+
