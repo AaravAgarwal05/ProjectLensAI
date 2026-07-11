@@ -1,51 +1,39 @@
-"""Abstract retriever interface."""
+"""Abstract retriever interface and base classes."""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Any
 
-
-@dataclass
-class RetrievedChunk:
-    """A chunk returned by a retriever, with a relevance score."""
-
-    content: str
-    score: float
-    metadata: dict[str, Any] = field(default_factory=dict)
-    document_id: str | None = None
+from src.ai_core.retrieval.models import RetrievalResult, SearchQuery
 
 
-class BaseRetriever(ABC):
+class Retriever(ABC):
     """Interface for retrieval strategies.
 
-    Subclasses implement different backends: vector similarity search,
-    full-text search, hybrid, or re-ranking pipelines.
+    Subclasses implement different backends: dense vector search,
+    hybrid search, multi-query expansion, etc.
     """
 
+    @property
     @abstractmethod
-    async def retrieve(self, query: str, top_k: int = 10) -> list[RetrievedChunk]:
+    def retriever_name(self) -> str:
+        """Human-readable provider identifier."""
+
+    @abstractmethod
+    async def retrieve(
+        self,
+        query: SearchQuery,
+    ) -> RetrievalResult:
         """Retrieve the most relevant chunks for a query.
 
         Args:
-            query: The search query.
-            top_k: Maximum number of chunks to return.
+            query: The search query parameters.
 
         Returns:
-            A list of retrieved chunks sorted by relevance (best first).
+            A ``RetrievalResult`` with chunks sorted by relevance.
         """
 
     @abstractmethod
-    async def retrieve_with_scores(
-        self,
-        query: str,
-        top_k: int = 10,
-    ) -> list[tuple[RetrievedChunk, float]]:
-        """Retrieve chunks together with their raw similarity scores.
-
-        Args:
-            query: The search query.
-            top_k: Maximum number of chunks to return.
-
-        Returns:
-            A list of ``(chunk, score)`` tuples, sorted by score descending.
-        """
+    def configure(self, params: dict[str, Any]) -> None:
+        """Reconfigure the retriever at runtime."""

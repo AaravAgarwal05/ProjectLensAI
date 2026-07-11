@@ -172,9 +172,7 @@ class IndexingEngine:
 
         return result
 
-    async def _resolve_store(
-        self, store: VectorStore | None = None
-    ) -> VectorStore:
+    async def _resolve_store(self, store: VectorStore | None = None) -> VectorStore:
         if store is not None:
             return store
         if self._store is not None:
