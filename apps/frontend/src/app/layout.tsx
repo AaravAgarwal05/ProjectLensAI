@@ -1,19 +1,14 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Providers } from './providers'
 import './globals.css'
 
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-})
-
 export const metadata: Metadata = {
-  title: 'ProjectLens AI',
-  description: 'Production-grade document analysis platform',
-  icons: {
-    icon: '/logo.svg',
+  title: {
+    default: 'ProjectLens AI',
+    template: '%s | ProjectLens AI',
   },
+  description: 'Precision Intelligence for your Data Ecosystem',
+  icons: { icon: '/logo.svg' },
 }
 
 export default function RootLayout({
@@ -22,9 +17,21 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-surface-50 font-sans text-surface-900 antialiased">
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Geist font */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@100..800&display=swap"
+          rel="stylesheet"
+        />
+        {/* Material Symbols */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen antialiased">
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

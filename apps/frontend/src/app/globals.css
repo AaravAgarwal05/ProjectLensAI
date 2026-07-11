@@ -4,83 +4,132 @@
 
 @layer base {
   body {
-    @apply antialiased bg-surface-50 text-surface-900;
+    @apply bg-background text-on-background antialiased;
+    font-family: 'Geist', sans-serif;
   }
 
   * {
-    @apply border-surface-200;
+    @apply border-outline-variant;
   }
 }
 
 @layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  .glass-card {
+    background: rgba(9, 9, 11, 0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid #27272a;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-surface-300 bg-white px-5 py-2.5 text-sm font-semibold text-surface-700 shadow-sm transition-all duration-200 hover:bg-surface-50 hover:text-surface-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 1px solid transparent;
+    background: linear-gradient(135deg, rgba(192, 193, 255, 0.2), rgba(221, 183, 255, 0.05)) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 
-  .card {
-    @apply rounded-xl border border-surface-200 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md;
+  .glass-card-hover {
+    background: rgba(20, 20, 22, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(39, 39, 42, 0.5);
+    transition: all 0.3s ease;
   }
 
-  .input-field {
-    @apply block w-full rounded-lg border border-surface-300 bg-white px-3.5 py-2.5 text-sm text-surface-900 placeholder-surface-400 shadow-sm transition-colors duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20;
+  .glass-card-hover:hover {
+    border-color: rgba(192, 193, 255, 0.3);
+  }
+
+  .ai-glow {
+    box-shadow: 0 0 20px rgba(192, 193, 255, 0.05);
+  }
+
+  .ai-gradient-border {
+    position: relative;
+    background: #000;
+    background-clip: padding-box;
+    border: 1px solid transparent;
+  }
+
+  .ai-gradient-border::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #c0c1ff 0%, #6f00be 100%);
+    opacity: 0.2;
   }
 }
 
 @layer utilities {
-  /* Custom scrollbar */
+  .input-glow:focus-within {
+    box-shadow: 0 0 12px -2px rgba(128, 131, 255, 0.4);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #0e0e10;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #353437;
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #464554;
+  }
+
   .scrollbar-custom {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.surface.300') transparent;
+    scrollbar-color: #353437 transparent;
   }
-
   .scrollbar-custom::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
-
   .scrollbar-custom::-webkit-scrollbar-track {
     background: transparent;
   }
-
   .scrollbar-custom::-webkit-scrollbar-thumb {
-    background-color: theme('colors.surface.300');
-    border-radius: 3px;
+    background-color: #353437;
+    border-radius: 10px;
   }
-
   .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-    background-color: theme('colors.surface.400');
+    background-color: #464554;
   }
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
   animation: fade-in 0.5s ease-out forwards;
 }
-
 .animate-fade-in-delay-1 {
   animation: fade-in 0.5s ease-out 0.1s forwards;
   opacity: 0;
 }
-
 .animate-fade-in-delay-2 {
   animation: fade-in 0.5s ease-out 0.2s forwards;
   opacity: 0;
 }
-
 .animate-fade-in-delay-3 {
   animation: fade-in 0.5s ease-out 0.3s forwards;
   opacity: 0;
