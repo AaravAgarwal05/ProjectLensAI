@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/shared/icon'
+import { AuthService } from '@/services/auth'
 
 /* ─── animation helpers ─── */
 
@@ -16,9 +19,57 @@ const stagger = {
   animate: { transition: { staggerChildren: 0.08 } },
 }
 
+/* ─── validation ─── */
+
+function validateEmail(v: string): string | undefined {
+  if (!v.trim()) return 'Email is required'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Enter a valid email address'
+  return undefined
+}
+
+function validatePassword(v: string): string | undefined {
+  if (!v) return 'Password is required'
+  return undefined
+}
+
 /* ─── page ─── */
 
 export default function LoginPage() {
+  const router = useRouter()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const [apiError, setApiError] = useState('')
+
+  function validate(): { email?: string; password?: string } {
+    return {
+      email: validateEmail(email),
+      password: validatePassword(password),
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setApiError('')
+
+    const fieldErrors = validate()
+    setErrors(fieldErrors)
+    if (Object.values(fieldErrors).some(Boolean)) return
+
+    setLoading(true)
+    try {
+      await AuthService.login(email, password)
+      router.push('/dashboard')
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <motion.div
       className="flex flex-col"
@@ -37,7 +88,14 @@ export default function LoginPage() {
 
       {/* ─── Login Card ─── */}
       <motion.div className="glass-card rounded-xl p-xl ai-glow shadow-2xl" variants={fadeUp}>
-        <form className="space-y-md" onSubmit={(e) => e.preventDefault()}>
+        <form className="space-y-md" onSubmit={handleSubmit} noValidate>
+          {apiError && (
+            <div className="mb-md p-sm bg-error-container/20 border border-error/30 rounded-lg font-body-md text-error text-sm">
+              <Icon className="inline mr-xs align-text-bottom" size="16px">error</Icon>
+              {apiError}
+            </div>
+          )}
+
           {/* Email */}
           <div className="space-y-sm">
             <label className="font-label-md text-label-md text-on-surface-variant block" htmlFor="email">EMAIL ADDRESS</label>
@@ -47,9 +105,12 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 placeholder="name@company.com"
-                className="w-full bg-black border border-outline-variant rounded-lg py-md pl-[44px] pr-md text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary transition-all duration-200 input-glow"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors((p) => ({ ...p, email: validateEmail(e.target.value) })) }}
+                className={`w-full bg-black border ${errors.email ? 'border-error' : 'border-outline-variant'} rounded-lg py-md pl-[44px] pr-md text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary transition-all duration-200 input-glow`}
               />
             </div>
+            {errors.email && <p className="font-label-md text-error text-xs mt-1">{errors.email}</p>}
           </div>
 
           {/* Password */}
@@ -64,9 +125,12 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                className="w-full bg-black border border-outline-variant rounded-lg py-md pl-[44px] pr-md text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary transition-all duration-200 input-glow"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((p) => ({ ...p, password: validatePassword(e.target.value) })) }}
+                className={`w-full bg-black border ${errors.password ? 'border-error' : 'border-outline-variant'} rounded-lg py-md pl-[44px] pr-md text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary transition-all duration-200 input-glow`}
               />
             </div>
+            {errors.password && <p className="font-label-md text-error text-xs mt-1">{errors.password}</p>}
           </div>
 
           {/* Remember me */}
@@ -74,6 +138,8 @@ export default function LoginPage() {
             <input
               id="remember"
               type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
               className="w-4 h-4 rounded-sm bg-black border-outline-variant text-primary focus:ring-0 focus:ring-offset-0 cursor-pointer"
             />
             <label className="font-body-md text-body-md text-on-surface-variant cursor-pointer select-none" htmlFor="remember">Remember me for 30 days</label>
@@ -82,9 +148,17 @@ export default function LoginPage() {
           {/* Sign In */}
           <button
             type="submit"
-            className="w-full bg-primary text-on-primary font-headline-md text-headline-md py-md rounded-lg active:scale-95 transition-transform duration-100 hover:bg-primary-fixed-dim shadow-lg shadow-primary/10"
+            disabled={loading}
+            className="w-full bg-primary text-on-primary font-headline-md text-headline-md py-md rounded-lg active:scale-95 transition-transform duration-100 hover:bg-primary-fixed-dim disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/10 flex items-center justify-center gap-sm"
           >
-            Sign In
+            {loading ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />
+                Signing in…
+              </>
+            ) : (
+              'Sign In'
+            )}
           </button>
 
           {/* Divider */}

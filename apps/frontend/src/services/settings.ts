@@ -1,4 +1,7 @@
-import { NotImplementedError } from './base'
+/**
+ * Settings service — UI-only state for now.
+ * No backend endpoints exist for profile / AI config / appearance yet.
+ */
 
 interface ProfileData {
   name: string
@@ -19,28 +22,37 @@ interface AppearanceConfig {
 
 export const SettingsService = {
   async getProfile(): Promise<ProfileData> {
-    throw new NotImplementedError('SettingsService', 'getProfile')
+    return { name: 'Alex Chen', email: 'alex@projectlens.ai', avatar: undefined }
   },
 
-  async updateProfile(_data: Partial<ProfileData>): Promise<ProfileData> {
-    throw new NotImplementedError('SettingsService', 'updateProfile')
+  async updateProfile(data: Partial<ProfileData>): Promise<ProfileData> {
+    return {
+      name: data.name ?? 'Alex Chen',
+      email: data.email ?? 'alex@projectlens.ai',
+      avatar: data.avatar,
+    }
   },
 
   async getAiConfig(): Promise<AiConfig> {
-    throw new NotImplementedError('SettingsService', 'getAiConfig')
+    return { model: 'gpt-4', temperature: 0.7, maxTokens: 4096 }
   },
 
-  async updateAiConfig(_config: Partial<AiConfig>): Promise<AiConfig> {
-    throw new NotImplementedError('SettingsService', 'updateAiConfig')
+  async updateAiConfig(config: Partial<AiConfig>): Promise<AiConfig> {
+    return {
+      model: config.model ?? 'gpt-4',
+      temperature: config.temperature ?? 0.7,
+      maxTokens: config.maxTokens ?? 4096,
+    }
   },
 
   async getAppearance(): Promise<AppearanceConfig> {
-    throw new NotImplementedError('SettingsService', 'getAppearance')
+    return { theme: 'dark', fontSize: 'medium' }
   },
 
-  async updateAppearance(
-    _config: Partial<AppearanceConfig>
-  ): Promise<AppearanceConfig> {
-    throw new NotImplementedError('SettingsService', 'updateAppearance')
+  async updateAppearance(config: Partial<AppearanceConfig>): Promise<AppearanceConfig> {
+    return {
+      theme: config.theme ?? 'dark',
+      fontSize: config.fontSize ?? 'medium',
+    }
   },
 }

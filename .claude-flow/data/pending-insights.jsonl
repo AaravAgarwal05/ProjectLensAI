@@ -430,3 +430,7 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/chat/test_message_manager.py","timestamp":1783801095379,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/chat/test_models.py","timestamp":1783801100481,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/chat/test_models.py","timestamp":1783801100703,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/analysis.py","timestamp":1783875316457,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/documents.py","timestamp":1783875353694,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/auth.py","timestamp":1783875353930,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/reports.py","timestamp":1783875354133,"sessionId":null}

@@ -5,6 +5,7 @@ from src.database.models import (
     CollectionReport,
     Report,
     ReportVersion,
+    User,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "CollectionReport",
     "Report",
     "ReportVersion",
+    "User",
 ]

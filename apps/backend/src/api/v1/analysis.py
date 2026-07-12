@@ -4,8 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from src.api.dependencies import get_settings
-from src.config.settings import AppSettings
+from src.config.settings import AppSettings, get_settings
 
 router = APIRouter()
 

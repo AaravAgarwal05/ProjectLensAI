@@ -18,7 +18,8 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_user, get_db, get_settings
+from src.api.dependencies import get_current_user, get_db
+from src.config.settings import get_settings
 from src.config.settings import AppSettings
 from src.database.session import async_session_factory
 from src.document_processing.cleaners.artifacts import PageArtifactCleaner

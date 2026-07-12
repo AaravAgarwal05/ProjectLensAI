@@ -7,7 +7,6 @@ import { useSidebarStore } from '@/stores/sidebar-store'
 
 interface DashboardLayoutProps {
   children: ReactNode
-  /** Props forwarded to TopNav */
   searchPlaceholder?: string
   hideSearch?: boolean
   hideLinks?: boolean
@@ -27,11 +26,13 @@ export function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-background text-on-surface">
-      {/* Sidebar - fixed 240px */}
       <Sidebar />
 
-      {/* Main content area — offset by sidebar width */}
-      <div className={`${isOpen ? 'ml-[240px]' : 'ml-0'} flex flex-1 flex-col transition-[margin] duration-300 ease-in-out`}>
+      <div
+        className={`flex flex-1 flex-col transition-[margin] duration-300 ease-in-out ${
+          isOpen ? 'ml-[240px]' : 'ml-0'
+        }`}
+      >
         <TopNav
           searchPlaceholder={searchPlaceholder}
           hideSearch={hideSearch}
@@ -40,7 +41,6 @@ export function DashboardLayout({
           rightExtra={rightExtra}
         />
 
-        {/* Page content */}
         <main className="custom-scrollbar flex-1 overflow-y-auto">
           {children}
         </main>

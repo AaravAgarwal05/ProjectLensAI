@@ -18,6 +18,7 @@ from src.database import (  # noqa: F401
     CollectionReport,
     Report,
     ReportVersion,
+    User,
 )
 
 # Alembic Config object

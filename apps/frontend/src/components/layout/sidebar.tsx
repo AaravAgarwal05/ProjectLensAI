@@ -26,8 +26,8 @@ export function Sidebar() {
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 z-50 flex h-full flex-col gap-sm border-r border-outline-variant bg-surface-container-lowest p-md overflow-hidden"
-      animate={{ width: isOpen ? 240 : 0 }}
+      className="fixed left-0 top-0 z-50 flex h-full w-[240px] flex-col gap-sm border-r border-outline-variant bg-surface-container-lowest p-md"
+      animate={{ x: isOpen ? 0 : -240 }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
     >
       {/* Logo */}
