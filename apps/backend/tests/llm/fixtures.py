@@ -61,7 +61,7 @@ def make_successful_generate_response(
         status_code=200,
         json={
             "model": "test-model:latest",
-            "response": text,
+            "message": {"role": "assistant", "content": text},
             "done": True,
             "prompt_eval_count": prompt_eval_count,
             "eval_count": eval_count,

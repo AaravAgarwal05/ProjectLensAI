@@ -23,13 +23,6 @@ class ChatConfiguration:
     retrieval_top_k: int = 10
     retrieval_min_score: float = 0.0
 
-    system_prompt: str = (
-        "You are a helpful AI assistant for ProjectLens AI. "
-        "Answer questions based on the provided context. "
-        "When referencing information from a document, include the "
-        "source citation."
-    )
-
     def merge(self, params: dict[str, Any]) -> ChatConfiguration:
         d = self.to_dict()
         d.update(params)
@@ -47,5 +40,4 @@ class ChatConfiguration:
             "max_citations_per_response": self.max_citations_per_response,
             "retrieval_top_k": self.retrieval_top_k,
             "retrieval_min_score": self.retrieval_min_score,
-            "system_prompt": self.system_prompt,
         }

@@ -17,32 +17,32 @@ logger = logging.getLogger(__name__)
 class ChromaVectorStore(VectorStore):
     """Vector-store provider wrapping ChromaDB.
 
+    Supports three connection modes:
+      1. **HTTP** (default) — connect to a running ChromaDB server (e.g. Docker).
+         Set *host* / *port* OR set *path* to ``"http://host:port"``.
+      2. **Persistent** — local on-disk storage via *path*.
+      3. **In-memory** — no args, ephemeral (data lost on restart).
+
     Configuration:
-        path: Persistence directory (``None`` for in-memory).
+        host: ChromaDB server host (default ``"localhost"``).
+        port: ChromaDB server port (default 8000).
+        path: Local persistence directory (mutually exclusive with host/port).
         collection_metadata: Extra metadata for new collections.
     """
 
     def __init__(
         self,
         path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
         collection_metadata: dict[str, Any] | None = None,
     ) -> None:
         self._path = path
+        self._host = host
+        self._port = port
         self._collection_metadata = collection_metadata or {}
-        self._client: Any = None
+        self.__client: Any = None
         self._collections: dict[str, Any] = {}
-
-    # ------------------------------------------------------------------
-    # Lazy client
-    # ------------------------------------------------------------------
-
-    @property
-    def _client(self) -> Any:
-        return self.__client
-
-    @_client.setter
-    def _client(self, val: Any) -> None:
-        self.__client = val
 
     @property
     def client(self) -> Any:
@@ -50,10 +50,23 @@ class ChromaVectorStore(VectorStore):
         if self.__client is None:
             import chromadb
 
-            kwargs: dict[str, Any] = {}
-            if self._path:
-                kwargs["path"] = self._path
-            self.__client = chromadb.PersistentClient(**kwargs) if self._path else chromadb.Client()
+            if self._host is not None:
+                self.__client = chromadb.HttpClient(
+                    host=self._host,
+                    port=self._port or 8000,
+                )
+            elif self._path and self._path.startswith("http"):
+                from urllib.parse import urlparse
+
+                parsed = urlparse(self._path)
+                self.__client = chromadb.HttpClient(
+                    host=parsed.hostname or "localhost",
+                    port=parsed.port or 8000,
+                )
+            elif self._path:
+                self.__client = chromadb.PersistentClient(path=self._path)
+            else:
+                self.__client = chromadb.Client()
         return self.__client
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -160,6 +173,14 @@ class ChromaVectorStore(VectorStore):
             )
 
     def configure(self, params: dict[str, Any]) -> None:
+        if "host" in params:
+            self._host = params["host"]
+            self.__client = None
+            self._collections.clear()
+        if "port" in params:
+            self._port = params["port"]
+            self.__client = None
+            self._collections.clear()
         if "path" in params:
             self._path = params["path"]
             self.__client = None

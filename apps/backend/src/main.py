@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.exceptions import register_exception_handlers
 from src.api.middleware import add_middleware
+from src.api.rate_limiter import SlowAPIMiddleware, _rate_limit_exceeded_handler, limiter
 from src.api.v1.router import api_router
 from src.config.logging import configure_logging
 from src.config.settings import get_settings
@@ -43,6 +44,11 @@ def create_app() -> FastAPI:
 
     # Custom middleware
     add_middleware(app)
+
+    # Rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(429, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)  # noqa: E402
 
     # Exception handlers
     register_exception_handlers(app)

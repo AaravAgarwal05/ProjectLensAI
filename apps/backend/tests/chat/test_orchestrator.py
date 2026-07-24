@@ -59,8 +59,8 @@ def mock_llm_provider():
 
 @pytest.fixture
 def mock_retrieve_chunks():
-    """Create a mock retrieval callable."""
-    return MagicMock(
+    """Create an async mock retrieval callable."""
+    return AsyncMock(
         return_value=[
             ContextChunk(
                 chunk_id="retrieved-1",

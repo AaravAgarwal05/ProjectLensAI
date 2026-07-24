@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from src.ai_core.chat.citations import CitationEngine
 from src.ai_core.chat.config import ChatConfiguration
@@ -66,7 +66,7 @@ class ChatOrchestrator:
         self,
         session_id: str,
         user_message: str,
-        retrieve_chunks: Callable[[str, list[str], int], list[ContextChunk]] | None = None,
+        retrieve_chunks: Callable[[str, list[str], int], Awaitable[list[ContextChunk]]] | None = None,
     ) -> tuple[ChatMessageModel, list[CitationReference]]:
         """Process a user message through the full pipeline.
 
@@ -92,7 +92,7 @@ class ChatOrchestrator:
         # Retrieve context chunks
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
-            chunks = retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
+            chunks = await retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
 
         # Load conversation history
         history = await self._load_history(session_id)
@@ -136,7 +136,7 @@ class ChatOrchestrator:
         self,
         session_id: str,
         user_message: str,
-        retrieve_chunks: Callable[[str, list[str], int], list[ContextChunk]] | None = None,
+        retrieve_chunks: Callable[[str, list[str], int], Awaitable[list[ContextChunk]]] | None = None,
     ) -> AsyncIterator[StreamingChunk]:
         """Process a message and stream the response tokens.
 
@@ -158,7 +158,7 @@ class ChatOrchestrator:
         # Retrieve + context (same as non-streaming)
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
-            chunks = retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
+            chunks = await retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
 
         history = await self._load_history(session_id)
         strategy = self._mode_to_strategy(session.mode)
@@ -182,16 +182,16 @@ class ChatOrchestrator:
             if chunk.text:
                 full_text.append(chunk.text)
             if chunk.finish_reason:
-                # Extract citations from the (now final) context
                 citations = self._citations.extract(ctx.chunks)
+                # Persist BEFORE yielding the final chunk — the consumer
+                # may close the generator immediately after the final yield,
+                # skipping any code after this loop.
+                response_text = "".join(full_text)
+                await self._create_assistant_message(session_id, response_text, citations)
+                await self._session_mgr.update_session(session_id)
                 yield chunk
-                break
+                return
             yield chunk
-
-        # Persist the assistant message
-        response_text = "".join(full_text)
-        await self._create_assistant_message(session_id, response_text, citations)
-        await self._session_mgr.update_session(session_id)
 
     # ------------------------------------------------------------------
     # Mode mapping

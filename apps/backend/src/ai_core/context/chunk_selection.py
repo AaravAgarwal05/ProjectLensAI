@@ -65,7 +65,7 @@ class ChunkSelectionStrategy:
             ):
                 current = ContextChunk(
                     chunk_id=current.chunk_id,
-                    content=current.content + "\n" + next_c.content,
+                    content=(current.content or "") + "\n" + (next_c.content or ""),
                     score=max(current.score, next_c.score),
                     source_id=current.source_id,
                     source_title=current.source_title,

@@ -29,8 +29,6 @@ from src.ai_core.llm.models import (
 
 logger = logging.getLogger(__name__)
 
-_ROUGH_TOKEN_RATIO = 4  # chars per token for local estimation
-
 
 class OllamaProvider(LLMProvider):
     """LLM provider backed by a local Ollama instance."""
@@ -60,14 +58,14 @@ class OllamaProvider(LLMProvider):
     # ------------------------------------------------------------------
 
     async def generate(self, request: LLMRequest) -> LLMResponse:
-        """Non-streaming generation via Ollama /api/generate."""
+        """Non-streaming generation via Ollama /api/chat."""
         client = await self._get_client()
         model = request.model_name or self._config.model_name
         payload = self._build_payload(request, model, stream=False)
 
         try:
             start = time.monotonic()
-            response = await client.post("/api/generate", json=payload)
+            response = await client.post("/api/chat", json=payload)
             elapsed_ms = (time.monotonic() - start) * 1000
         except httpx.TimeoutException as exc:
             raise TimeoutError(f"Ollama request timed out after {self._config.timeout}s") from exc
@@ -78,7 +76,7 @@ class OllamaProvider(LLMProvider):
             raise GenerationError(f"Ollama returned status {response.status_code}: {response.text}")
 
         data = response.json()
-        text = data.get("response", "")
+        text = data.get("message", {}).get("content", "")
         usage = TokenUsage(
             prompt_tokens=data.get("prompt_eval_count", 0),
             completion_tokens=data.get("eval_count", 0),
@@ -99,14 +97,14 @@ class OllamaProvider(LLMProvider):
         )
 
     async def generate_stream(self, request: LLMRequest) -> AsyncIterator[StreamingChunk]:
-        """Streaming generation via Ollama /api/generate with stream=True."""
+        """Streaming generation via Ollama /api/chat with stream=True."""
         client = await self._get_client()
         model = request.model_name or self._config.model_name
         payload = self._build_payload(request, model, stream=True)
         finish_reason: str | None = None
 
         try:
-            async with client.stream("POST", "/api/generate", json=payload) as resp:
+            async with client.stream("POST", "/api/chat", json=payload) as resp:
                 if resp.status_code != 200:
                     raise StreamingError(f"Ollama streaming returned status {resp.status_code}")
 
@@ -119,7 +117,7 @@ class OllamaProvider(LLMProvider):
                         logger.warning("Ollama sent invalid JSON: %s", line[:80])
                         continue
 
-                    chunk_text = data.get("response", "")
+                    chunk_text = data.get("message", {}).get("content", "")
                     if data.get("done"):
                         finish_reason = "stop"
                         # Final metadata chunk — yield with finish_reason
@@ -197,22 +195,34 @@ class OllamaProvider(LLMProvider):
             return False
 
     async def count_tokens(self, text: str) -> int:
-        """Estimate token count.  Ollama lacks a dedicated count endpoint."""
+        """Estimate token count via centralized tokenizer."""
         if not text:
             return 0
-        # Rough local estimate
-        return max(1, len(text) // _ROUGH_TOKEN_RATIO)
+        from src.ai_core.tokenizer import estimate_tokens
+        return estimate_tokens(text)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _build_payload(self, request: LLMRequest, model: str, stream: bool) -> dict[str, Any]:
-        """Build the JSON payload for /api/generate."""
+        """Build the JSON payload for /api/chat."""
+        messages: list[dict] = []
+
+        # System message
+        if request.system_prompt:
+            messages.append({"role": "system", "content": request.system_prompt})
+
+        # Conversation history (if available)
+        for msg in request.history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+        # Current user message
+        messages.append({"role": "user", "content": request.user_prompt})
+
         payload: dict[str, Any] = {
             "model": model,
-            "prompt": request.user_prompt,
-            "system": request.system_prompt,
+            "messages": messages,
             "stream": stream,
             "options": {
                 "temperature": request.temperature,

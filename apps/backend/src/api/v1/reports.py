@@ -4,6 +4,7 @@ All business logic is delegated to ``ReportService``.  The router only
 handles HTTP concerns (parsing, status codes, error formatting).
 """
 
+import logging
 from uuid import UUID
 
 from fastapi import (
@@ -21,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_current_user, get_db
 from src.config.settings import get_settings
 from src.config.settings import AppSettings
-from src.database.session import async_session_factory
+from src.database import session as db_session
 from src.document_processing.cleaners.artifacts import PageArtifactCleaner
 from src.document_processing.cleaners.base import CleaningPipeline
 from src.document_processing.cleaners.unicode import UnicodeCleaner
@@ -43,6 +44,7 @@ from .schemas import (
     VersionResponse,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -103,7 +105,7 @@ def _build_processing_service(settings: AppSettings) -> ProcessingService:
     return ProcessingService(
         pipeline=pipeline,
         storage=storage,
-        db_factory=async_session_factory,  # type: ignore[arg-type]
+        db_factory=db_session.async_session_factory,  # type: ignore[arg-type]
     )
 
 
@@ -133,6 +135,11 @@ async def create_report(
     After the report is created, background processing is triggered
     automatically so the endpoint returns immediately (HTTP 201).
     """
+    logger.info("═► UPLOAD: Receiving file '%s' (title='%s', size=%d bytes)...",
+                file.filename, title, file.size or 0)
+    logger.info("  └── File type: %s | Department: %s | Author: %s",
+                file.content_type, department or "not specified", author or "not specified")
+
     tag_list: list[str] | None = (
         [t.strip() for t in tags.split(",") if t.strip()] if tags else None
     )
@@ -153,9 +160,25 @@ async def create_report(
         year=year,
     )
 
+    logger.info("  ✔ File saved to storage. Report created with ID: %s", report.id)
+    logger.info("  └── Saving was done, now triggering background analysis...")
+
+    # Commit the transaction NOW so the background task can see the new
+    # report when it opens its own session.  (get_db's dependency cleanup
+    # commits after background tasks — too late.)
+    await db.commit()
+
     # Trigger background processing so the user gets an immediate response.
     processing_service = _build_processing_service(settings)
-    background_tasks.add_task(processing_service.process_report, report.id)
+    background_tasks.add_task(
+        processing_service.process_report,
+        report.id,
+        str(user.id),
+        getattr(user, "preferences", None),
+    )
+
+    logger.info("  ✔ Background analysis started! The report will be processed in the background.")
+    logger.info("  └── You can continue using the app while it's being analyzed.")
 
     return ReportResponse.model_validate(report)
 
@@ -299,7 +322,12 @@ async def upload_version(
 
     # Trigger background processing for the new version content.
     processing_service = _build_processing_service(settings)
-    background_tasks.add_task(processing_service.process_report, report_id)
+    background_tasks.add_task(
+        processing_service.process_report,
+        report_id,
+        str(user.id),
+        getattr(user, "preferences", None),
+    )
 
     return VersionResponse.model_validate(version)
 

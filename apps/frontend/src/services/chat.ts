@@ -1,5 +1,5 @@
 import type { ChatSession, ChatMessage, Citation } from '@/types'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, API_BASE, getAuthToken, ApiError } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Raw backend response types (snake_case)
@@ -205,16 +205,87 @@ export const ChatService = {
   },
 
   /**
-   * Stream a message chunk by chunk.
-   * Backend does not support streaming yet — delivers full response as one chunk.
+   * Stream a message via SSE — calls /chat/send/stream and delivers tokens
+   * to onChunk as they arrive. Returns the final ChatMessage.
    */
   async streamMessage(
     sessionId: string,
     content: string,
-    onChunk: (_chunk: string) => void
+    onChunk: (_chunk: string) => void,
+    extra?: { reportIds?: string[]; mode?: string }
   ): Promise<ChatMessage> {
-    const msg = await ChatService.sendMessage(sessionId, content)
-    onChunk(msg.content)
-    return msg
+    const token = getAuthToken()
+    const body: Record<string, unknown> = {
+      message: content,
+      session_id: sessionId,
+    }
+    if (extra?.reportIds) body.report_ids = extra.reportIds
+    if (extra?.mode) body.mode = extra.mode
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${API_BASE}/chat/send/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(
+        errBody?.detail ?? errBody?.message ?? res.statusText,
+        res.status
+      )
+    }
+
+    const reader = res.body?.getReader()
+    if (!reader) throw new ApiError('No response body', 0)
+
+    const decoder = new TextDecoder()
+    const buffer: string[] = []
+    let finalSessionId = sessionId
+    let done = false
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read()
+      done = readerDone
+
+      if (value) {
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.type === 'token' && parsed.text) {
+              buffer.push(parsed.text)
+              onChunk(parsed.text)
+            } else if (parsed.type === 'done') {
+              finalSessionId = parsed.session_id ?? sessionId
+            } else if (parsed.type === 'error') {
+              throw new ApiError(parsed.message ?? 'Stream error', 500)
+            }
+          } catch {
+            // skip malformed JSON lines
+          }
+        }
+      }
+    }
+
+    // Build a ChatMessage-like result from the accumulated text
+    const fullContent = buffer.join('')
+    return {
+      id: `stream-${Date.now()}`,
+      sessionId: finalSessionId,
+      role: 'assistant',
+      content: fullContent,
+      citations: undefined,
+      createdAt: new Date().toISOString(),
+    }
   },
 }

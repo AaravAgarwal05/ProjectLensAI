@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
@@ -18,6 +18,7 @@ class ChatSessionModel(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="New Chat")
     mode: Mapped[str] = mapped_column(String(20), nullable=False, default="single")
     report_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)

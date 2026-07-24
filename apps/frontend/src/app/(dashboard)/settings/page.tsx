@@ -4,6 +4,15 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
+import {
+  SettingsService,
+  CHUNKING_OPTIONS,
+  LLM_OPTIONS,
+  RETRIEVAL_OPTIONS,
+  EMBEDDING_OPTIONS,
+  DEFAULT_PREFERENCES,
+  type ProcessingPreferences,
+} from '@/services/settings'
 
 /* ─── animation helpers ─── */
 
@@ -147,30 +156,6 @@ export default function SettingsPage() {
         </motion.div>
       </div>
 
-      {/* ─── Bottom Action Bar ─── */}
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
-        className="fixed bottom-8 left-1/2 z-50 w-[calc(100%-320px)] max-w-4xl -translate-x-1/2"
-      >
-        <div className="glass-card flex items-center justify-between rounded-full border border-primary/20 p-md shadow-2xl">
-          <div className="flex items-center gap-2">
-            <Icon className="text-primary" size="20px">
-              info
-            </Icon>
-            <span className="font-body-md text-on-surface-variant">Unsaved changes detected.</span>
-          </div>
-          <div className="flex items-center gap-sm">
-            <button className="rounded-full px-lg py-sm font-body-md text-on-surface-variant transition-colors hover:text-on-surface">
-              Discard
-            </button>
-            <button className="rounded-full bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90">
-              Save Changes
-            </button>
-          </div>
-        </div>
-      </motion.div>
     </DashboardLayout>
   )
 }
@@ -252,130 +237,248 @@ function ProfileTab() {
    ═══════════════════════════════════════════════════ */
 
 function AIConfigTab() {
-  const [embedding, setEmbedding] = useState<'lens' | 'ada'>('lens')
-  const [retrieval, setRetrieval] = useState<'hybrid' | 'reranked'>('hybrid')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [origPrefs, setOrigPrefs] = useState<ProcessingPreferences>(DEFAULT_PREFERENCES)
+  const [chunkingStrategy, setChunkingStrategy] = useState(DEFAULT_PREFERENCES.chunking_strategy)
+  const [llmProvider, setLlmProvider] = useState(DEFAULT_PREFERENCES.llm_provider)
+  const [retrievalStrategy, setRetrievalStrategy] = useState(DEFAULT_PREFERENCES.retrieval_strategy)
+  const [embeddingProvider, setEmbeddingProvider] = useState(DEFAULT_PREFERENCES.embedding_provider)
+
+  // Load preferences from backend on mount
+  useEffect(() => {
+    SettingsService.getProcessingPreferences()
+      .then((prefs) => {
+        setOrigPrefs(prefs)
+        setChunkingStrategy(prefs.chunking_strategy)
+        setLlmProvider(prefs.llm_provider)
+        setRetrievalStrategy(prefs.retrieval_strategy)
+        setEmbeddingProvider(prefs.embedding_provider)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Detect changes against original
+  useEffect(() => {
+    if (loading) return
+    const changed =
+      chunkingStrategy !== origPrefs.chunking_strategy ||
+      llmProvider !== origPrefs.llm_provider ||
+      retrievalStrategy !== origPrefs.retrieval_strategy ||
+      embeddingProvider !== origPrefs.embedding_provider
+    setHasChanges(changed)
+  }, [chunkingStrategy, llmProvider, retrievalStrategy, embeddingProvider, origPrefs, loading])
+
+  const handleSave = useCallback(async () => {
+    setSaving(true)
+    try {
+      const updated = await SettingsService.updateProcessingPreferences({
+        chunking_strategy: chunkingStrategy,
+        llm_provider: llmProvider,
+        retrieval_strategy: retrievalStrategy,
+        embedding_provider: embeddingProvider,
+      })
+      setOrigPrefs(updated)
+      setHasChanges(false)
+    } catch {
+      // error logged by apiRequest
+    } finally {
+      setSaving(false)
+    }
+  }, [chunkingStrategy, llmProvider, retrievalStrategy, embeddingProvider])
+
+  const handleDiscard = useCallback(() => {
+    setChunkingStrategy(origPrefs.chunking_strategy)
+    setLlmProvider(origPrefs.llm_provider)
+    setRetrievalStrategy(origPrefs.retrieval_strategy)
+    setEmbeddingProvider(origPrefs.embedding_provider)
+    setHasChanges(false)
+  }, [origPrefs])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-1 gap-lg md:grid-cols-3">
       {/* Left Column */}
       <motion.div variants={itemStagger} className="md:col-span-1">
-        <h2 className="mb-xs font-headline-md text-on-surface">Model Orchestration</h2>
+        <h2 className="mb-xs font-headline-md text-on-surface">Processing Preferences</h2>
         <p className="font-body-md text-sm text-on-surface-variant">
-          Select your preferred LLM engine, embedding provider, and retrieval strategy for intelligent queries.
+          Choose how reports are chunked, embedded, and analyzed. These preferences are used when
+          processing your uploaded documents.
         </p>
       </motion.div>
 
       {/* Right Column */}
       <motion.div variants={itemStagger} className="md:col-span-2">
         <div className="ai-glow glass-card flex flex-col gap-lg rounded-xl p-lg">
-          {/* LLM Model Engine */}
+          {/* Chunking Strategy */}
+          <div className="flex flex-col gap-sm">
+            <div className="flex items-center gap-2">
+              <Icon className="text-primary" size="18px">
+                dashboard
+              </Icon>
+              <label className="font-label-md text-primary">Chunking Strategy</label>
+            </div>
+            <p className="font-body-md text-sm text-on-surface-variant mb-sm">
+              Controls how documents are split into pieces for analysis.
+            </p>
+            <div className="grid grid-cols-3 gap-sm">
+              {CHUNKING_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setChunkingStrategy(opt.value)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
+                    chunkingStrategy === opt.value
+                      ? 'border-primary bg-primary-container/10 text-primary'
+                      : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Icon size="18px" fill={chunkingStrategy === opt.value}>
+                    check_circle
+                  </Icon>
+                  <span className="font-bold">{opt.label}</span>
+                  <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-outline-variant/30" />
+
+          {/* LLM Provider */}
           <div className="flex flex-col gap-sm">
             <div className="flex items-center gap-2">
               <Icon className="text-primary" size="18px">
                 auto_awesome
               </Icon>
-              <label className="font-label-md text-primary">LLM Model Engine</label>
+              <label className="font-label-md text-primary">LLM Provider</label>
             </div>
-            <select className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none transition-colors focus:border-primary">
-              <option>Lens-Ultra-4</option>
-              <option>GPT-4o</option>
-              <option>Claude 3.5 Sonnet</option>
-              <option>Llama-3-70B</option>
-            </select>
+            <p className="font-body-md text-sm text-on-surface-variant mb-sm">
+              Select which language model powers analysis and chat responses.
+            </p>
+            <div className="grid grid-cols-3 gap-sm">
+              {LLM_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setLlmProvider(opt.value)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
+                    llmProvider === opt.value
+                      ? 'border-primary bg-primary-container/10 text-primary'
+                      : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Icon size="18px" fill={llmProvider === opt.value}>
+                    check_circle
+                  </Icon>
+                  <span className="font-bold">{opt.label}</span>
+                  <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Embedding Provider */}
-          <div className="flex flex-col gap-sm">
-            <label className="font-label-md text-[11px] uppercase text-outline">Embedding Provider</label>
-            <div className="grid grid-cols-2 gap-sm">
-              <button
-                onClick={() => setEmbedding('lens')}
-                className={`flex items-center gap-2 rounded-lg border px-md py-sm font-body-md transition-colors ${
-                  embedding === 'lens'
-                    ? 'border-primary bg-primary-container/10 text-primary'
-                    : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                <Icon size="18px" fill={embedding === 'lens'}>
-                  check_circle
-                </Icon>
-                Lens-Vector-v2
-              </button>
-              <button
-                onClick={() => setEmbedding('ada')}
-                className={`flex items-center gap-2 rounded-lg border px-md py-sm font-body-md transition-colors ${
-                  embedding === 'ada'
-                    ? 'border-primary bg-primary-container/10 text-primary'
-                    : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                <Icon size="18px" fill={embedding === 'ada'}>
-                  check_circle
-                </Icon>
-                Ada-002
-              </button>
-            </div>
-          </div>
+          {/* Divider */}
+          <div className="border-t border-outline-variant/30" />
 
           {/* Retrieval Strategy */}
           <div className="flex flex-col gap-sm">
-            <label className="font-label-md text-[11px] uppercase text-outline">Retrieval Strategy</label>
-            <div className="flex flex-col gap-sm">
-              <label
-                onClick={() => setRetrieval('hybrid')}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border px-md py-sm transition-colors ${
-                  retrieval === 'hybrid'
-                    ? 'border-primary bg-primary-container/10'
-                    : 'border-outline-variant'
-                }`}
-              >
-                <div className="mt-0.5">
-                  <div
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                      retrieval === 'hybrid' ? 'border-primary' : 'border-outline-variant'
-                    }`}
-                  >
-                    {retrieval === 'hybrid' && (
-                      <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="font-body-md font-bold text-on-surface">Hybrid Semantic Search</p>
-                  <p className="font-body-md text-sm text-on-surface-variant">
-                    Combines keyword and vector search for balanced retrieval accuracy.
-                  </p>
-                </div>
-              </label>
-              <label
-                onClick={() => setRetrieval('reranked')}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border px-md py-sm transition-colors ${
-                  retrieval === 'reranked'
-                    ? 'border-primary bg-primary-container/10'
-                    : 'border-outline-variant'
-                }`}
-              >
-                <div className="mt-0.5">
-                  <div
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                      retrieval === 'reranked' ? 'border-primary' : 'border-outline-variant'
-                    }`}
-                  >
-                    {retrieval === 'reranked' && (
-                      <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="font-body-md font-bold text-on-surface">Reranked Top-K</p>
-                  <p className="font-body-md text-sm text-on-surface-variant">
-                    Uses cross-encoder reranking on top-K results for maximum precision.
-                  </p>
-                </div>
-              </label>
+            <div className="flex items-center gap-2">
+              <Icon className="text-primary" size="18px">
+                search
+              </Icon>
+              <label className="font-label-md text-primary">Retrieval Strategy</label>
+            </div>
+            <p className="font-body-md text-sm text-on-surface-variant mb-sm">
+              Determines how the system searches for relevant information.
+            </p>
+            <div className="grid grid-cols-3 gap-sm">
+              {RETRIEVAL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setRetrievalStrategy(opt.value)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
+                    retrievalStrategy === opt.value
+                      ? 'border-primary bg-primary-container/10 text-primary'
+                      : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Icon size="18px" fill={retrievalStrategy === opt.value}>
+                    check_circle
+                  </Icon>
+                  <span className="font-bold">{opt.label}</span>
+                  <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-outline-variant/30" />
+
+          {/* Embedding Provider */}
+          <div className="flex flex-col gap-sm">
+            <div className="flex items-center gap-2">
+              <Icon className="text-primary" size="18px">
+                texture
+              </Icon>
+              <label className="font-label-md text-primary">Embedding Provider</label>
+            </div>
+            <p className="font-body-md text-sm text-on-surface-variant mb-sm">
+              Controls how document text is converted to vector embeddings.
+            </p>
+            <div className="grid grid-cols-2 gap-sm">
+              {EMBEDDING_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setEmbeddingProvider(opt.value)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
+                    embeddingProvider === opt.value
+                      ? 'border-primary bg-primary-container/10 text-primary'
+                      : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <Icon size="18px" fill={embeddingProvider === opt.value}>
+                    check_circle
+                  </Icon>
+                  <span className="font-bold">{opt.label}</span>
+                  <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
+
+        {/* Save / Discard inline */}
+        {hasChanges && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-lg flex items-center justify-end gap-sm"
+          >
+            <button
+              onClick={handleDiscard}
+              className="rounded-lg border border-outline-variant px-lg py-sm font-body-md text-on-surface-variant transition-colors hover:text-on-surface"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   )

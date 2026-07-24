@@ -101,6 +101,7 @@ class TestCreateReport:
 
         await _patch_repos(report_service)
         report_service._report_repo.create.return_value = expected_report  # type: ignore[attr-defined]
+        report_service._report_repo.get_with_versions.return_value = expected_report  # type: ignore[attr-defined]
         report_service._version_repo.create.return_value = expected_version  # type: ignore[attr-defined]
 
         f = _mock_file()
@@ -185,14 +186,14 @@ class TestGetReport:
     async def test_returns_report(self, report_service: ReportService) -> None:
         expected = make_report()
         await _patch_repos(report_service)
-        report_service._report_repo.get.return_value = expected  # type: ignore[attr-defined]
+        report_service._report_repo.get_with_versions.return_value = expected  # type: ignore[attr-defined]
 
         result = await report_service.get_report(expected.id)
         assert result is expected
 
     async def test_returns_none_when_not_found(self, report_service: ReportService) -> None:
         await _patch_repos(report_service)
-        report_service._report_repo.get.return_value = None  # type: ignore[attr-defined]
+        report_service._report_repo.get_with_versions.return_value = None  # type: ignore[attr-defined]
         result = await report_service.get_report(uuid4())
         assert result is None
 
@@ -209,7 +210,7 @@ class TestListReports:
         count_mock = MagicMock()
         count_mock.scalar_one.return_value = 2
         fetch_mock = MagicMock()
-        fetch_mock.scalars.return_value.all.return_value = reports
+        fetch_mock.unique.return_value.scalars.return_value.all.return_value = reports
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
         result, total = await report_service.list_reports(skip=0, limit=20)
@@ -222,7 +223,7 @@ class TestListReports:
         count_mock = MagicMock()
         count_mock.scalar_one.return_value = 1
         fetch_mock = MagicMock()
-        fetch_mock.scalars.return_value.all.return_value = drafted
+        fetch_mock.unique.return_value.scalars.return_value.all.return_value = drafted
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
         result, total = await report_service.list_reports(status="draft")
@@ -235,7 +236,7 @@ class TestListReports:
         count_mock = MagicMock()
         count_mock.scalar_one.return_value = 0
         fetch_mock = MagicMock()
-        fetch_mock.scalars.return_value.all.return_value = []
+        fetch_mock.unique.return_value.scalars.return_value.all.return_value = []
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
         await report_service.list_reports(author="Dr. Smith")
@@ -247,7 +248,7 @@ class TestListReports:
         count_mock = MagicMock()
         count_mock.scalar_one.return_value = 0
         fetch_mock = MagicMock()
-        fetch_mock.scalars.return_value.all.return_value = []
+        fetch_mock.unique.return_value.scalars.return_value.all.return_value = []
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
         await report_service.list_reports(search="quarterly")
@@ -259,7 +260,7 @@ class TestListReports:
         count_mock = MagicMock()
         count_mock.scalar_one.return_value = 0
         fetch_mock = MagicMock()
-        fetch_mock.scalars.return_value.all.return_value = []
+        fetch_mock.unique.return_value.scalars.return_value.all.return_value = []
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
         await report_service.list_reports(status="uploaded", author="Alice", search="Q4")
@@ -283,6 +284,7 @@ class TestUpdateReport:
         updated = make_report(title="New Title")
         await _patch_repos(report_service)
         report_service._report_repo.update.return_value = updated  # type: ignore[attr-defined]
+        report_service._report_repo.get_with_versions.return_value = updated  # type: ignore[attr-defined]
 
         result = await report_service.update_report(updated.id, title="New Title")
         assert result is updated

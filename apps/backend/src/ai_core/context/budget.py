@@ -11,9 +11,7 @@ from src.ai_core.context.models import ContextBudget, ContextChunk, Conversation
 logger = logging.getLogger(__name__)
 
 
-def estimate_tokens(text: str) -> int:
-    """Rough token estimation (4 chars per token)."""
-    return len(text) // 4
+from src.ai_core.tokenizer import estimate_tokens
 
 
 class TokenBudgetManager:

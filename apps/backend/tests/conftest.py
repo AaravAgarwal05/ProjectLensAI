@@ -239,8 +239,10 @@ async def api_client(
     async def _override_db() -> AsyncGenerator[AsyncSession, None]:
         yield mock_session  # type: ignore[misc]
 
-    async def _override_user() -> dict:
-        return {"sub": "test-user-id", "role": "user"}
+    from types import SimpleNamespace
+
+    async def _override_user() -> SimpleNamespace:
+        return SimpleNamespace(id="test-user-id", sub="test-user-id", role="user", preferences={})
 
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[get_current_user] = _override_user

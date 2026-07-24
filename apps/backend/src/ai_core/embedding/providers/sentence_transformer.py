@@ -8,10 +8,9 @@ Supports batch embedding, device configuration, and L2 normalisation.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
-if TYPE_CHECKING:
-    from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer
 
 from src.ai_core.embedding.base import EmbeddingProvider
 

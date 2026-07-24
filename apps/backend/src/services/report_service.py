@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.api.exceptions import ProjectLensError
 from src.config.settings import AppSettings
@@ -104,15 +105,18 @@ class ReportService:
             "Created report '%s' (id=%s) v1 — %s",
             title, report.id, file.filename,
         )
-        return report
+
+        # Reload with versions eager-loaded so Pydantic serialization
+        # doesn't trigger a lazy-load outside the async session context.
+        return await self._report_repo.get_with_versions(report.id)
 
     # ------------------------------------------------------------------
     # Read
     # ------------------------------------------------------------------
 
     async def get_report(self, report_id: UUID) -> Report | None:
-        """Retrieve a single report by ID."""
-        return await self._report_repo.get(report_id)
+        """Retrieve a single report by ID with versions eager-loaded."""
+        return await self._report_repo.get_with_versions(report_id)
 
     async def list_reports(
         self,
@@ -145,12 +149,12 @@ class ReportService:
             count_stmt = count_stmt.where(c)
         total = (await self._session.execute(count_stmt)).scalar_one()
 
-        # Paginated results
-        fetch_stmt = select(Report)
+        # Paginated results with versions eager-loaded
+        fetch_stmt = select(Report).options(joinedload(Report.versions))
         for c in conditions:
             fetch_stmt = fetch_stmt.where(c)
         fetch_stmt = fetch_stmt.offset(skip).limit(limit)
-        rows = (await self._session.execute(fetch_stmt)).scalars().all()
+        rows = (await self._session.execute(fetch_stmt)).unique().scalars().all()
 
         return list(rows), total
 
@@ -164,7 +168,11 @@ class ReportService:
         **updates: Any,
     ) -> Report | None:
         """Update metadata on an existing report.  Returns ``None`` if not found."""
-        return await self._report_repo.update(report_id, **updates)
+        updated = await self._report_repo.update(report_id, **updates)
+        if updated is None:
+            return None
+        # Reload with versions eager-loaded to avoid MissingGreenlet.
+        return await self._report_repo.get_with_versions(report_id)
 
     # ------------------------------------------------------------------
     # Delete

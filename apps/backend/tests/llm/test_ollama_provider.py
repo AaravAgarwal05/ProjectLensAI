@@ -123,9 +123,9 @@ class TestOllamaProviderStreaming:
         prov = _make_provider()
         req = _sample_request()
         stream_lines = [
-            b'{"response": "Hello", "done": false}\n',
-            b'{"response": " world", "done": false}\n',
-            b'{"response": "", "done": true, "eval_count": 3}\n',
+            b'{"message": {"role": "assistant", "content": "Hello"}, "done": false}\n',
+            b'{"message": {"role": "assistant", "content": " world"}, "done": false}\n',
+            b'{"message": {"role": "assistant", "content": ""}, "done": true, "eval_count": 3}\n',
         ]
 
         async def _aiter_lines():
@@ -171,9 +171,9 @@ class TestOllamaProviderStreaming:
         req = _sample_request()
         stream_lines = [
             b"not json\n",
-            b'{"response": "val", "done": false}\n',
-            b'{"response": "id", "done": false}\n',
-            b'{"response": "", "done": true, "eval_count": 2}\n',
+            b'{"message": {"role": "assistant", "content": "val"}, "done": false}\n',
+            b'{"message": {"role": "assistant", "content": "id"}, "done": false}\n',
+            b'{"message": {"role": "assistant", "content": ""}, "done": true, "eval_count": 2}\n',
         ]
 
         async def _aiter_lines():

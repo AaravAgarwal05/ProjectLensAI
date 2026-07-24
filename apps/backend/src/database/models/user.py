@@ -1,9 +1,51 @@
 """User ORM model for authentication."""
 
-from sqlalchemy import Boolean, Column, String
+import json
+
+from sqlalchemy import Boolean, Column, String, TypeDecorator
+from sqlalchemy.dialects.postgresql import JSONB
 
 from src.database.base import Base
 from src.database.mixins import TimestampMixin, UUIDMixin
+
+
+# --- SQLite-safe JSON column ---
+
+
+class JSONColumn(TypeDecorator):
+    """Generic JSON column — uses JSONB on PostgreSQL, TEXT on SQLite."""
+
+    impl = String
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(JSONB())
+        return dialect.type_dialect_impl(self.impl)
+
+    def process_bind_param(self, value, dialect):
+        if dialect.name == "postgresql":
+            return value
+        return json.dumps(value) if value is not None else None
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            return json.loads(value)
+        return {}
+
+
+# --- Default preferences ---
+
+DEFAULT_PREFERENCES = {
+    "chunking_strategy": "heading_aware",
+    "llm_provider": "ollama",
+    "retrieval_strategy": "hybrid",
+    "embedding_provider": "ollama",
+}
 
 
 class User(UUIDMixin, TimestampMixin, Base):
@@ -17,3 +59,8 @@ class User(UUIDMixin, TimestampMixin, Base):
     hashed_password: Column[str] = Column(String(255), nullable=False)
     role: Column[str] = Column(String(50), nullable=False, default="user")
     is_active: Column[bool] = Column(Boolean, nullable=False, default=True)
+    preferences: Column[dict] = Column(
+        JSONColumn(),
+        nullable=False,
+        default=lambda: dict(DEFAULT_PREFERENCES),
+    )

@@ -46,8 +46,10 @@ async def bg_api_client() -> AsyncClient:
     async def _override_db():
         yield mock_session
 
+    from types import SimpleNamespace
+
     async def _override_user():
-        return {"sub": "test-user-id", "role": "user"}
+        return SimpleNamespace(id="test-user-id", sub="test-user-id", role="user", preferences={})
 
     settings = AppSettings(
         MAX_UPLOAD_SIZE=1024 * 100,
@@ -204,4 +206,6 @@ class TestBackgroundProcessing:
             )
 
         assert response.status_code == 201
-        mock_proc_svc.process_report.assert_awaited_once_with(report_id)
+        mock_proc_svc.process_report.assert_awaited_once_with(
+            report_id, "test-user-id", {},
+        )

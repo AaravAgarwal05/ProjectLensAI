@@ -27,7 +27,7 @@ class TestChunkingRegistry:
         reg.register("fixed", FixedChunker)
         reg.register("recursive", RecursiveChunker)
         reg.register("heading_aware", HeadingAwareChunker)
-        names = set(reg.list())
+        names = set(reg.list_names())
         assert "fixed" in names
         assert "recursive" in names
         assert "heading_aware" in names
@@ -43,7 +43,7 @@ class TestChunkingRegistry:
         reg = ChunkingRegistry()
         reg.register("fixed", FixedChunker)
         reg.unregister("fixed")
-        assert "fixed" not in reg.list()
+        assert "fixed" not in reg.list_names()
         # unregister on missing is a no-op (no crash)
         reg.unregister("fixed")
 

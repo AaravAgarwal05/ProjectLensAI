@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
-import { placeholderChatSessions } from '@/lib/placeholders'
+import { ChatService } from '@/services/chat'
+import type { ChatSession } from '@/types/chat'
 
 /* ─── animation variants ─── */
 
@@ -34,7 +35,24 @@ function timeAgo(date: Date): string {
 
 export default function ChatHomePage() {
   const [search, setSearch] = useState('')
-  const sessions = placeholderChatSessions()
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const data = await ChatService.listSessions({ limit: 50 })
+        if (!cancelled) setSessions(data)
+      } catch {
+        if (!cancelled) setSessions([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   const filtered = search
     ? sessions.filter(
@@ -93,7 +111,11 @@ export default function ChatHomePage() {
         </motion.div>
 
         {/* Chat list */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-1 items-center justify-center py-xxl">
+            <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : filtered.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

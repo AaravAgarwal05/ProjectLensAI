@@ -7,6 +7,10 @@ name = "projectlens-ai"
 version = "0.1.0"
 description = "Production-grade document analysis platform"
 requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "chromadb>=1.5.0",
+]
 authors = [
     {name = "ProjectLens AI Team", email = "team@projectlens.ai"},
 ]

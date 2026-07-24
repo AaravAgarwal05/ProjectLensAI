@@ -25,12 +25,14 @@ class SessionManager:
         title: str = "New Chat",
         report_ids: list[str] | None = None,
         mode: str = "single",
+        user_id: str | None = None,
     ) -> ChatSessionModel:
         """Create a new chat session."""
         session = ChatSessionModel(
             title=title,
             mode=mode,
             report_ids=report_ids or [],
+            user_id=user_id,
         )
         self._db.add(session)
         await self._db.flush()
@@ -85,11 +87,14 @@ class SessionManager:
         include_archived: bool = False,
         limit: int = 50,
         offset: int = 0,
+        user_id: str | None = None,
     ) -> list[ChatSessionModel]:
         """List sessions, newest first."""
         query = select(ChatSessionModel)
         if not include_archived:
             query = query.where(ChatSessionModel.archived == False)  # noqa: E712
+        if user_id is not None:
+            query = query.where(ChatSessionModel.user_id == user_id)
         query = query.order_by(ChatSessionModel.updated_at.desc()).limit(limit).offset(offset)
         result = await self._db.execute(query)
         return list(result.scalars().all())

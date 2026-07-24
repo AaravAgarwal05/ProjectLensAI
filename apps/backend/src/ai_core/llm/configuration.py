@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -17,8 +17,8 @@ class LLMConfiguration:
     temperature: float = 0.7
     top_p: float = 0.9
     max_tokens: int = 2048
-    context_window: int = 8192
-    timeout: float = 60.0
+    context_window: int = 262144  # qwen3.5:4b actual capacity
+    timeout: float = 120.0
     base_url: str = "http://localhost:11434"
 
     max_retries: int = 2
@@ -32,7 +32,14 @@ class LLMConfiguration:
 
     enable_benchmark: bool = False
 
-    system_prompt: str = "You are a helpful AI assistant for ProjectLens AI."
+    system_prompt: str = (
+        "You are a helpful AI assistant for ProjectLens AI. "
+        "Answer questions based on the provided context. "
+        "When referencing information from a document, include the "
+        "source citation."
+    )
+
+    fallback_models: list[str] = field(default_factory=lambda: ["llama3.2:3b"])
 
     def merge(self, params: dict[str, Any]) -> LLMConfiguration:
         """Return a new config with overrides from *params*."""
@@ -60,6 +67,7 @@ class LLMConfiguration:
             "strict_validation": self.strict_validation,
             "enable_benchmark": self.enable_benchmark,
             "system_prompt": self.system_prompt,
+            "fallback_models": list(self.fallback_models),
         }
 
     @staticmethod

@@ -38,6 +38,13 @@ class PromptBuilder:
         user_prompt = self._build_user_prompt(ctx)
         citations = self._collect_citations(ctx)
 
+        # Build structured history from conversation context
+        formatted_history: list[dict[str, str]] = []
+        if ctx.conversation_history:
+            for msg in ctx.conversation_history:
+                role = msg.role.value if hasattr(msg.role, 'value') else str(msg.role)
+                formatted_history.append({"role": role, "content": msg.content})
+
         temperature = self._config.temperature
         max_tokens = self._config.max_tokens
         top_p = self._config.top_p
@@ -52,6 +59,7 @@ class PromptBuilder:
         return LLMRequest(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
+            history=formatted_history,
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,

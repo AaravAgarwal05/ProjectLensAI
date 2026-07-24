@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from src.api.v1 import analysis, auth, chat, collections, documents, health, reports
+from src.api.v1 import analysis, auth, chat, collections, documents, health, reports, settings
 
 api_router = APIRouter()
 
@@ -13,3 +13,4 @@ api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(analysis.router, prefix="/analysis", tags=["analysis"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(collections.router, prefix="/collections", tags=["collections"])
+api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
