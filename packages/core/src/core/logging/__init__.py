@@ -1,6 +1,6 @@
 """Logging package."""
 
-from core.logging.logger import get_logger, LoggerMixin
+from core.logging.logger import LoggerMixin, get_logger
 
 __all__ = [
     "get_logger",

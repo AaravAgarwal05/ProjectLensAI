@@ -11,12 +11,12 @@ class LLMConfiguration:
     """Configuration for the LLM engine."""
 
     provider: str = "ollama"
-    model_name: str = "qwen3.5:4b"
+    model_name: str = "llama3.2:1b"
     embedding_model: str = "nomic-embed-text"
 
-    temperature: float = 0.7
-    top_p: float = 0.9
-    max_tokens: int = 2048
+    temperature: float = 0.3
+    top_p: float = 0.85
+    max_tokens: int = 4096
     context_window: int = 262144  # qwen3.5:4b actual capacity
     timeout: float = 120.0
     base_url: str = "http://localhost:11434"
@@ -33,13 +33,12 @@ class LLMConfiguration:
     enable_benchmark: bool = False
 
     system_prompt: str = (
-        "You are a helpful AI assistant for ProjectLens AI. "
-        "Answer questions based on the provided context. "
-        "When referencing information from a document, include the "
-        "source citation."
+        "You are a document analysis assistant. "
+        "Read the retrieved context and answer based only on what you find there. "
+        "If the context has no useful information, say the context doesn't cover the question."
     )
 
-    fallback_models: list[str] = field(default_factory=lambda: ["llama3.2:3b"])
+    fallback_models: list[str] = field(default_factory=lambda: ["gemma3:1b"])
 
     def merge(self, params: dict[str, Any]) -> LLMConfiguration:
         """Return a new config with overrides from *params*."""

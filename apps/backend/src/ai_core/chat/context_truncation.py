@@ -8,7 +8,7 @@ payload fits within the LLM's context window.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.ai_core.context.models import ContextChunk
 

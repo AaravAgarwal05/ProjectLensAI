@@ -19,6 +19,7 @@ class Message(BaseModel):
         content: Text content of the message.
         metadata: Arbitrary metadata key-value pairs.
         created_at: Timestamp of creation.
+
     """
 
     model_config = {"frozen": True}
@@ -41,6 +42,7 @@ class Conversation(BaseModel):
         messages: Ordered list of messages in the conversation.
         created_at: Timestamp of creation.
         updated_at: Timestamp of last update.
+
     """
 
     model_config = {"frozen": True}
@@ -61,6 +63,7 @@ class Thread(BaseModel):
         parent_message_id: Identifier of the message this thread branches from.
         messages: Ordered list of messages in the thread.
         created_at: Timestamp of creation.
+
     """
 
     id: UUID = Field(default_factory=uuid4)

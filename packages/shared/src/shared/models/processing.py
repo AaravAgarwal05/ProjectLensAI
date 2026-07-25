@@ -18,6 +18,7 @@ class Page(BaseModel):
         metadata: Arbitrary metadata key-value pairs for this page.
         char_count: Number of characters in the page content.
         word_count: Number of words in the page content.
+
     """
 
     number: int
@@ -43,6 +44,7 @@ class DocumentMetadata(BaseModel):
         modification_date: Document last-modified timestamp (if embedded).
         processed_by: Identifier of the processor that parsed this document.
         extra: Catch-all for any additional metadata not covered above.
+
     """
 
     title: str | None = None
@@ -66,6 +68,7 @@ class ProcessingWarning(BaseModel):
         stage: The processing stage that generated the warning (e.g. ``"ocr"``, ``"clean"``).
         message: Human-readable warning description.
         details: Optional structured context about the warning.
+
     """
 
     stage: str
@@ -81,6 +84,7 @@ class ProcessingError(BaseModel):
         message: Human-readable error description.
         code: Machine-readable error code (e.g. ``"PARSE_FAILURE"``).
         details: Optional structured context about the error.
+
     """
 
     stage: str
@@ -100,6 +104,7 @@ class ProcessingStatistics(BaseModel):
         page_count: Number of pages processed.
         raw_char_count: Character count of the raw (uncleaned) text.
         clean_char_count: Character count after cleaning.
+
     """
 
     parse_time_ms: float = 0
@@ -126,6 +131,7 @@ class ParsedDocument(BaseModel):
         errors: Fatal errors generated during processing.
         statistics: Timing and sizing statistics for this processing run.
         created_at: Timestamp when this ParsedDocument was created.
+
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

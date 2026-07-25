@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
         email: User email address.
         username: Display / login username.
         password: Plain-text password (hashed server-side).
+
     """
 
     email: str
@@ -38,6 +39,7 @@ class UserResponse(BaseModel):
     Attributes:
         user: The user object.
         token: Optional JWT token (included on registration / login).
+
     """
 
     user: User

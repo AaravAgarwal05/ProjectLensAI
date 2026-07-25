@@ -8,7 +8,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from src.database.base import Base
 from src.database.mixins import TimestampMixin, UUIDMixin
 
-
 # --- SQLite-safe JSON column ---
 
 
@@ -43,6 +42,7 @@ class JSONColumn(TypeDecorator):
 DEFAULT_PREFERENCES = {
     "chunking_strategy": "heading_aware",
     "llm_provider": "ollama",
+    "llm_model": "gemma3:1b",
     "retrieval_strategy": "hybrid",
     "embedding_provider": "ollama",
 }

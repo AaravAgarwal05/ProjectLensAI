@@ -38,6 +38,7 @@ def get_logger(name: str, config: LoggingConfig | None = None) -> logging.Logger
 
     Returns:
         A configured :class:`logging.Logger` instance.
+
     """
     if name in _LOGGER_CACHE:
         return _LOGGER_CACHE[name]

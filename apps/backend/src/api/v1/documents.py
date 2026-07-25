@@ -5,8 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
-from src.config.settings import get_settings
-from src.config.settings import AppSettings
+from src.config.settings import AppSettings, get_settings
 
 router = APIRouter()
 

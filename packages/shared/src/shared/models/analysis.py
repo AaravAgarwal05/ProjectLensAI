@@ -18,6 +18,7 @@ class Citation(BaseModel):
         page: Optional page number within the source.
         text: Cited text excerpt.
         relevance_score: Relevance score between 0.0 and 1.0.
+
     """
 
     id: UUID | None = None
@@ -38,6 +39,7 @@ class AnalysisResult(BaseModel):
         citations: List of supporting citations.
         confidence: Confidence score between 0.0 and 1.0.
         created_at: Timestamp of creation.
+
     """
 
     model_config = {"frozen": True}

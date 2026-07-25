@@ -25,7 +25,7 @@ from src.ai_core.context.strategies.single_document import SingleDocumentStrateg
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.prompt_builder import PromptBuilder
 from src.ai_core.llm.providers.ollama import OllamaProvider
-from src.api.dependencies import get_db, get_current_user
+from src.api.dependencies import get_current_user, get_db
 from src.api.rate_limiter import limiter
 from src.database.models import User
 from src.services.rag_chat_service import RAGChatService
@@ -63,14 +63,23 @@ def _get_rag_service() -> RAGChatService:
 def _build_orchestrator(
     db: AsyncSession,
     mode: str = "single",
+    model_name: str | None = None,
 ) -> ChatOrchestrator | None:
     """Build a ChatOrchestrator with default wiring.
+
+    Args:
+        db: Database session.
+        mode: Chat mode (single, multi, comparison).
+        model_name: Optional model override. Uses LLMConfiguration default if None.
 
     Returns ``None`` if the LLM provider is unavailable (the caller
     should fall back to a placeholder response).
     """
     try:
-        llm_config = LLMConfiguration()
+        if model_name:
+            llm_config = LLMConfiguration(model_name=model_name)
+        else:
+            llm_config = LLMConfiguration()
         llm_provider = OllamaProvider(config=llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
         citation_engine = CitationEngine()
@@ -444,7 +453,9 @@ async def send_message(
     citations_out: list[CitationRefOut] = []
 
     if report_ids:
-        orchestrator = _build_orchestrator(db, mode=body.mode)
+        user_prefs = user.preferences or {}
+        user_model = user_prefs.get("llm_model") if isinstance(user_prefs, dict) else None
+        orchestrator = _build_orchestrator(db, mode=body.mode, model_name=user_model)
         retrieve_chunks = _build_retrieve_chunks()
         use_orchestrator = orchestrator is not None and retrieve_chunks is not None
 
@@ -525,9 +536,10 @@ async def _stream_events(
     report_ids: list[str],
     db: AsyncSession,
     mode: str = "single",
+    model_name: str | None = None,
 ) -> AsyncIterator[str]:
     """Stream SSE events for a chat message."""
-    orchestrator = _build_orchestrator(db, mode=mode)
+    orchestrator = _build_orchestrator(db, mode=mode, model_name=model_name)
     retrieve_chunks = _build_retrieve_chunks()
 
     if orchestrator is None or retrieve_chunks is None:
@@ -596,6 +608,7 @@ async def send_message_stream(
             report_ids=body.report_ids or [],
             db=db,
             mode=body.mode,
+            model_name=user.preferences.get("llm_model") if isinstance(user.preferences, dict) else None,
         ),
         media_type="text/event-stream",
         headers={

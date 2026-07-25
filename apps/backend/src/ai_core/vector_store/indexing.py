@@ -255,6 +255,7 @@ def _to_vector_doc(chunk: EmbeddedChunk) -> VectorDocument:
     return VectorDocument(
         chunk_id=chunk.chunk_id,
         vector=chunk.vector.vector,
+        text=chunk.text,
         dimensions=chunk.dimensions,
         metadata=VectorMetadata(
             chunk_id=chunk.chunk_id,

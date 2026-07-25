@@ -1,7 +1,7 @@
 """Event type definitions."""
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pydantic
@@ -14,7 +14,7 @@ class Event(pydantic.BaseModel):
     data: dict[str, Any] = pydantic.Field(default_factory=dict, description="Event payload")
     source: str = pydantic.Field(default="", description="Component that published the event")
     timestamp: datetime = pydantic.Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="When the event was created",
     )
 

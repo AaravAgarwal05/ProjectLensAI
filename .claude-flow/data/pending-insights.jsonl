@@ -462,3 +462,11 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/test_health.py","timestamp":1784144631089,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/chunking/test_registry.py","timestamp":1784144860384,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1784145244786,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784978631926,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784978642319,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784978649625,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/prompt_builder.py","timestamp":1784978656485,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784979050028,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/context/configuration.py","timestamp":1784979056267,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784979062689,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/prompt_builder.py","timestamp":1784979069011,"sessionId":null}

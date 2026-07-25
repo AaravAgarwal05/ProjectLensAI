@@ -1,7 +1,7 @@
 """Utility helper functions."""
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def snake_to_camel(s: str) -> str:
@@ -37,7 +37,7 @@ def truncate(s: str, max_len: int) -> str:
 
 def now_iso() -> str:
     """Return the current UTC time as an ISO-8601 string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def deep_merge(base: dict, override: dict) -> dict:

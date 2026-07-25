@@ -29,6 +29,7 @@ class ProviderRegistry(metaclass=Singleton):
             category: Provider category (e.g. ``"llm"``).
             name: Provider name (e.g. ``"openai"``).
             provider_class: A subclass of :class:`BaseProvider`.
+
         """
         with self._lock:
             self._classes.setdefault(category, {})[name] = provider_class
@@ -42,6 +43,7 @@ class ProviderRegistry(metaclass=Singleton):
         Raises:
             ProviderNotFoundError: If the category/name combination is
                 not registered.
+
         """
         with self._lock:
             cat_classes = self._classes.get(category, {})

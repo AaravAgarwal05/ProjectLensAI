@@ -13,6 +13,7 @@ class PaginationDTO(BaseModel):
         page: Page number (1-indexed, defaults to 1).
         page_size: Number of items per page (defaults to 20).
         total: Optional total item count (populated by the service layer).
+
     """
 
     page: int = Field(default=1, ge=1)

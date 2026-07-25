@@ -1,14 +1,14 @@
 """Exceptions package."""
 
 from core.exceptions.base import (
-    ProjectLensError,
     ConfigurationError,
+    ProjectLensError,
     ProviderError,
     ValidationError,
 )
 from core.exceptions.registry import (
-    PluginNotFoundError,
     DuplicateRegistrationError,
+    PluginNotFoundError,
     ProviderNotFoundError,
 )
 from core.exceptions.workflow import (

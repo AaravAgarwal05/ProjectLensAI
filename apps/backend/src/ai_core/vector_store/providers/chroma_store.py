@@ -121,7 +121,7 @@ class ChromaVectorStore(VectorStore):
         ids = [d.chunk_id for d in documents]
         vectors = [d.vector for d in documents]
         metadatas = [_to_chroma_meta(d) for d in documents]
-        col.add(ids=ids, embeddings=vectors, metadatas=metadatas)
+        col.add(ids=ids, embeddings=vectors, metadatas=metadatas, documents=[d.text for d in documents])
         return len(documents)
 
     async def update(self, collection: str, documents: list[VectorDocument]) -> int:
@@ -129,7 +129,7 @@ class ChromaVectorStore(VectorStore):
         ids = [d.chunk_id for d in documents]
         vectors = [d.vector for d in documents]
         metadatas = [_to_chroma_meta(d) for d in documents]
-        col.update(ids=ids, embeddings=vectors, metadatas=metadatas)
+        col.update(ids=ids, embeddings=vectors, metadatas=metadatas, documents=[d.text for d in documents])
         return len(documents)
 
     async def delete(

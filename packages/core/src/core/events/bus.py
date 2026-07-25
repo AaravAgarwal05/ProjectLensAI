@@ -1,9 +1,8 @@
 """Thread-safe event bus."""
 
 import asyncio
-import inspect
 import threading
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable
 
 from core.events.types import Event, EventHandler
 from core.utils.singleton import Singleton

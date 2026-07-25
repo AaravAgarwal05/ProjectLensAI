@@ -24,6 +24,7 @@ class PluginRegistry(metaclass=Singleton):
 
         Raises:
             DuplicateRegistrationError: If *name* is already registered.
+
         """
         with self._lock:
             if name in self._plugins:
@@ -38,6 +39,7 @@ class PluginRegistry(metaclass=Singleton):
 
         Raises:
             PluginNotFoundError: If *name* is not registered.
+
         """
         with self._lock:
             plugin = self._plugins.pop(name, None)
@@ -53,6 +55,7 @@ class PluginRegistry(metaclass=Singleton):
 
         Raises:
             PluginNotFoundError: If *name* is not registered.
+
         """
         with self._lock:
             plugin = self._plugins.get(name)

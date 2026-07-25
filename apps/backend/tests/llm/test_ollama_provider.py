@@ -267,7 +267,7 @@ class TestOllamaProviderConfig:
 
     def test_default_model(self):
         prov = OllamaProvider()
-        assert prov._config.model_name == "qwen3.5:4b"
+        assert prov._config.model_name == "llama3.2:1b"
 
     def test_custom_config(self):
         config = make_config(model_name="custom:latest")

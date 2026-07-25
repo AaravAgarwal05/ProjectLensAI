@@ -23,6 +23,7 @@ class Factory:
 
         Raises:
             KeyError: If *key* is not registered.
+
         """
         builder = self._builders.get(key)
         if builder is None:

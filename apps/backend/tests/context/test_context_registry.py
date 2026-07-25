@@ -91,7 +91,7 @@ class TestContextConfiguration:
     def test_defaults(self):
         cfg = ContextConfiguration.default()
         assert cfg.max_tokens == 8192
-        assert cfg.max_chunks == 20
+        assert cfg.max_chunks == 15
 
     def test_merge(self):
         cfg = ContextConfiguration.default()

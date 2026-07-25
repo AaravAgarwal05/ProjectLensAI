@@ -18,6 +18,7 @@ class DocumentMetadata(BaseModel):
         page_count: Optional number of pages.
         language: ISO language code (defaults to ``"en"``).
         custom: Arbitrary custom metadata key-value pairs.
+
     """
 
     title: str | None = None
@@ -39,6 +40,7 @@ class Document(BaseModel):
         status: Processing status (defaults to ``"pending"``).
         created_at: Timestamp of creation.
         updated_at: Timestamp of last update.
+
     """
 
     model_config = ConfigDict(frozen=True)
@@ -63,6 +65,7 @@ class DocumentChunk(BaseModel):
         content: Text content of the chunk.
         metadata: Optional metadata key-value pairs.
         embedding: Optional vector embedding representation.
+
     """
 
     model_config = ConfigDict(frozen=True)

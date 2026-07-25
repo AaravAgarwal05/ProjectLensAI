@@ -19,7 +19,7 @@ class TestPromptBuilder:
         request = builder.build(ctx)
         assert request.system_prompt != ""
         assert request.user_prompt == ""
-        assert request.temperature == 0.7
+        assert request.temperature == 0.3
 
     def test_build_with_query(self):
         """Build from context with query."""

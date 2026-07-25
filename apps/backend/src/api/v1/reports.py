@@ -20,8 +20,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db
-from src.config.settings import get_settings
-from src.config.settings import AppSettings
+from src.config.settings import AppSettings, get_settings
 from src.database import session as db_session
 from src.document_processing.cleaners.artifacts import PageArtifactCleaner
 from src.document_processing.cleaners.base import CleaningPipeline

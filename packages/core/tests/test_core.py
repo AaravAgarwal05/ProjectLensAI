@@ -1,20 +1,8 @@
 """Tests for the core package."""
 
-from abc import ABC
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
-
-from core import (
-    BaseProvider,
-    BaseRepository,
-    ConfigManager,
-    EventBus,
-    Factory,
-    PluginRegistry,
-    ProjectLensError,
-)
 from core.config.base import BaseConfig
 from core.config.env import EnvLoader
 from core.events.types import Event
@@ -33,7 +21,17 @@ from core.logging.logger import LoggerMixin, get_logger
 from core.registry.provider_registry import ProviderRegistry
 from core.utils.helpers import camel_to_snake, deep_merge, now_iso, snake_to_camel, truncate
 from core.utils.singleton import Singleton
+from pydantic import BaseModel
 
+from core import (
+    BaseProvider,
+    BaseRepository,
+    ConfigManager,
+    EventBus,
+    Factory,
+    PluginRegistry,
+    ProjectLensError,
+)
 
 # ---------------------------------------------------------------------------
 # Exception hierarchy

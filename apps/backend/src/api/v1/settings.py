@@ -4,7 +4,7 @@ Allows authenticated users to read and update their processing strategy
 choices (chunking, LLM, retrieval, embedding).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,10 @@ class ProcessingPreferences(BaseModel):
     llm_provider: str = Field(
         default=DEFAULT_PREFERENCES["llm_provider"],
         description="LLM provider: ollama, claude, gpt",
+    )
+    llm_model: str = Field(
+        default=DEFAULT_PREFERENCES["llm_model"],
+        description="LLM model: gemma3:1b, llama3.2:1b, etc.",
     )
     retrieval_strategy: str = Field(
         default=DEFAULT_PREFERENCES["retrieval_strategy"],

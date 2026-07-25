@@ -11,6 +11,7 @@ class LoginRequest(BaseModel):
     Attributes:
         email: User email address.
         password: User password.
+
     """
 
     email: str
@@ -24,6 +25,7 @@ class RegisterRequest(BaseModel):
         email: User email address.
         username: Desired username.
         password: Desired password.
+
     """
 
     email: str
@@ -38,6 +40,7 @@ class TokenResponse(BaseModel):
         access_token: JWT access token.
         token_type: Token type (defaults to ``"bearer"``).
         expires_in: Token lifetime in seconds.
+
     """
 
     access_token: str
@@ -50,6 +53,7 @@ class RefreshRequest(BaseModel):
 
     Attributes:
         refresh_token: The refresh token value.
+
     """
 
     refresh_token: str

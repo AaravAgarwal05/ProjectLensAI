@@ -226,7 +226,7 @@ class ProcessingService:
 
             # ── Step 5: Chunk + embed ─────────────────────────────────────
             chunking_strategy = "heading_aware"
-            embedding_provider = "sentence_transformer"
+            embedding_provider = "ollama"
             if preferences and isinstance(preferences, dict):
                 chunking_strategy = preferences.get("chunking_strategy", chunking_strategy)
                 embedding_provider = preferences.get("embedding_provider", embedding_provider)
@@ -389,10 +389,10 @@ class ProcessingService:
             from src.ai_core.embedding.registry import EmbeddingRegistry
 
             emb_registry = EmbeddingRegistry()
+            from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
             from src.ai_core.embedding.providers.sentence_transformer import (
                 SentenceTransformerProvider,
             )
-            from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
 
             emb_registry.register("sentence_transformer", SentenceTransformerProvider)
             emb_registry.register("ollama", OllamaEmbeddingProvider)
@@ -432,8 +432,8 @@ class ProcessingService:
                 from src.ai_core.vector_store.configuration import (
                     VectorStoreConfiguration,
                 )
-                from src.ai_core.vector_store.indexing import IndexingEngine
                 from src.ai_core.vector_store.factory import VectorStoreFactory
+                from src.ai_core.vector_store.indexing import IndexingEngine
                 from src.ai_core.vector_store.providers.chroma_store import (
                     ChromaVectorStore,
                 )

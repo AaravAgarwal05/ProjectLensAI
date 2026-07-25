@@ -17,6 +17,7 @@ class DocumentFilterDTO(BaseModel):
         date_from: Lower bound for document creation date.
         date_to: Upper bound for document creation date.
         search: Full-text search term.
+
     """
 
     status: str | None = None
@@ -31,6 +32,7 @@ class DocumentSortDTO(BaseModel):
     Attributes:
         field: Field name to sort by (defaults to ``"created_at"``).
         direction: Sort direction, ``"asc"`` or ``"desc"`` (defaults to ``"desc"``).
+
     """
 
     field: str = "created_at"

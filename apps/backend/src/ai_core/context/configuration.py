@@ -11,10 +11,10 @@ class ContextConfiguration:
     """Configuration for context assembly."""
 
     max_tokens: int = 8192
-    system_prompt_tokens: int = 500
-    max_history_tokens: int = 2048
-    max_chunk_tokens: int = 4096
-    max_chunks: int = 20
+    system_prompt_tokens: int = 150
+    max_history_tokens: int = 1024
+    max_chunk_tokens: int = 6144
+    max_chunks: int = 15
     reserved_tokens: int = 256
     conversation_max_messages: int = 20
     enable_conversation_summary: bool = True

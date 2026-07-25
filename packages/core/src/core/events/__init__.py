@@ -1,7 +1,7 @@
 """Events package."""
 
-from core.events.types import Event, EventHandler
 from core.events.bus import EventBus
+from core.events.types import Event, EventHandler
 
 __all__ = [
     "EventBus",

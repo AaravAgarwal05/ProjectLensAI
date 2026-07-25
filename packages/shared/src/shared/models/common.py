@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Generic, TypeVar
 
 from pydantic import Field
@@ -20,6 +20,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
         page: Current page number (1-indexed).
         page_size: Number of items per page.
         has_more: Whether additional pages exist.
+
     """
 
     items: list[T]
@@ -37,12 +38,13 @@ class APIResponse(BaseModel, Generic[T]):
         data: Optional response payload.
         error: Optional error message on failure.
         timestamp: Response timestamp (defaults to UTC now).
+
     """
 
     success: bool
     data: T | None = None
     error: str | None = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ErrorResponse(BaseModel):
@@ -52,6 +54,7 @@ class ErrorResponse(BaseModel):
         code: Machine-readable error code (e.g. ``"NOT_FOUND"``).
         message: Human-readable error description.
         details: Optional dictionary of additional error context.
+
     """
 
     code: str

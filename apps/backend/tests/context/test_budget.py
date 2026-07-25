@@ -22,7 +22,7 @@ class TestTokenBudgetManager:
             history=[],
         )
         assert budget.total == 8192
-        assert budget.system_prompt == 500
+        assert budget.system_prompt == 150
         assert budget.user_query > 0
         assert budget.retrieved_chunks > 0
 

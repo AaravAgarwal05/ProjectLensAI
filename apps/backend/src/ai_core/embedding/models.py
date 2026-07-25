@@ -52,6 +52,7 @@ class EmbeddedChunk(BaseModel):
     Attributes:
         chunk_id: UUID linking back to the source ``Chunk``.
         vector: The embedding vector.
+        text: The original chunk text (stored for retrieval).
         embedding_model: Name of the model that produced this embedding.
         embedding_provider: Name of the provider that produced this embedding.
         dimensions: Dimensionality of the vector.
@@ -61,6 +62,7 @@ class EmbeddedChunk(BaseModel):
 
     chunk_id: str
     vector: EmbeddingVector
+    text: str = ""
     embedding_model: str
     embedding_provider: str
     dimensions: int

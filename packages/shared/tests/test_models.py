@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
-
 from shared.models.analysis import AnalysisResult, Citation
 from shared.models.chat import Conversation, Message, Thread
 from shared.models.common import APIResponse, ErrorResponse, PaginatedResponse
 from shared.models.document import Document, DocumentChunk, DocumentMetadata
 from shared.models.user import User, UserPreferences
-
 
 # ---------------------------------------------------------------------------
 # Document model tests
@@ -43,7 +41,7 @@ class TestDocumentMetadata:
 
 class TestDocument:
     def test_frozen_instance(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc = Document(
             filename="test.pdf",
             content_type="application/pdf",
@@ -57,7 +55,7 @@ class TestDocument:
             doc.filename = "changed.pdf"  # type: ignore[misc]
 
     def test_minimal_construction(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc = Document(
             filename="doc.txt",
             content_type="text/plain",
@@ -69,7 +67,7 @@ class TestDocument:
         assert isinstance(doc.metadata, DocumentMetadata)
 
     def test_serialisation_roundtrip(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         doc = Document(
             filename="test.pdf",
             content_type="application/pdf",
@@ -116,7 +114,7 @@ class TestMessage:
             conversation_id=UUID("00000000-0000-0000-0000-000000000001"),
             role="user",
             content="Hello!",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert isinstance(msg.id, UUID)
         with pytest.raises(ValidationError):
@@ -125,7 +123,7 @@ class TestMessage:
 
 class TestConversation:
     def test_frozen_instance(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         conv = Conversation(
             title="Test Chat",
             created_at=now,
@@ -135,7 +133,7 @@ class TestConversation:
         assert conv.messages == []
 
     def test_with_messages(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         msg = Message(
             conversation_id=UUID("00000000-0000-0000-0000-000000000001"),
             role="user",
@@ -151,7 +149,7 @@ class TestConversation:
         assert len(conv.messages) == 1
 
     def test_serialisation_roundtrip(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         conv = Conversation(
             title="Roundtrip",
             created_at=now,
@@ -167,7 +165,7 @@ class TestThread:
     def test_minimal_construction(self) -> None:
         thread = Thread(
             parent_message_id=UUID("00000000-0000-0000-0000-000000000001"),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert isinstance(thread.id, UUID)
         assert thread.messages == []
@@ -184,7 +182,7 @@ class TestAnalysisResult:
             document_id=UUID("00000000-0000-0000-0000-000000000001"),
             analysis_type="summary",
             content="Analysis text",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert isinstance(result.id, UUID)
         assert result.citations == []
@@ -203,13 +201,13 @@ class TestAnalysisResult:
             content="Answer",
             citations=[citation],
             confidence=0.9,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         assert len(result.citations) == 1
         assert result.citations[0].source == "doc.pdf"
 
     def test_serialisation_roundtrip(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = AnalysisResult(
             document_id=UUID("00000000-0000-0000-0000-000000000001"),
             analysis_type="summary",
@@ -302,7 +300,7 @@ class TestErrorResponse:
 
 class TestUser:
     def test_frozen_instance(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         user = User(
             email="alice@example.com",
             username="alice",

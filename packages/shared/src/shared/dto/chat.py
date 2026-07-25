@@ -15,6 +15,7 @@ class ChatContextDTO(BaseModel):
         conversation_id: Optional identifier of the active conversation.
         relevant_chunks: List of relevant document chunk contents or references.
         system_prompt: Optional system-level prompt override.
+
     """
 
     conversation_id: UUID | None = None

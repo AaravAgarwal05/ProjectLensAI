@@ -19,6 +19,7 @@ class ConfigManager(metaclass=Singleton):
 
         Raises:
             ConfigurationError: If *name* is already registered.
+
         """
         if name in self._configs:
             raise ConfigurationError(
@@ -32,6 +33,7 @@ class ConfigManager(metaclass=Singleton):
 
         Raises:
             ConfigurationError: If *name* is not registered.
+
         """
         config = self._configs.get(name)
         if config is None:

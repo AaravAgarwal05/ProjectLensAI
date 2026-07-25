@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pydantic import Field
 from pydantic.main import BaseModel
 
 from shared.models.document import Document, DocumentMetadata
@@ -16,6 +15,7 @@ class DocumentCreate(BaseModel):
         content_type: MIME type of the document.
         size: File size in bytes.
         metadata: Optional document metadata.
+
     """
 
     filename: str
@@ -40,6 +40,7 @@ class DocumentResponse(Document):
 
     Attributes:
         is_favorite: Whether the current user has favourited this document.
+
     """
 
     is_favorite: bool = False

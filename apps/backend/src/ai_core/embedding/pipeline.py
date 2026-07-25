@@ -155,6 +155,7 @@ class EmbeddingPipeline:
                     all_embeddings.append(
                         EmbeddedChunk(
                             chunk_id=chunk.chunk_id,
+                            text=chunk.text,
                             vector=EmbeddingVector(vector=[], dimensions=0),
                             embedding_model=model_name,
                             embedding_provider=provider_name_str,
@@ -174,6 +175,7 @@ class EmbeddingPipeline:
             for chunk, vec in zip(batch, vectors, strict=False):
                 ec = EmbeddedChunk(
                     chunk_id=chunk.chunk_id,
+                    text=chunk.text,
                     vector=EmbeddingVector(vector=vec, dimensions=len(vec)),
                     embedding_model=model_name,
                     embedding_provider=provider_name_str,

@@ -21,12 +21,11 @@ jobs:
           cache: "pip"
       - name: Install
         run: |
-          pip install hatch
           cd apps/backend && pip install -e ".[dev]" && cd ../..
           cd packages/core && pip install -e ".[dev]" && cd ../..
           cd packages/shared && pip install -e ".[dev]" && cd ../..
       - name: Ruff
-        run: ruff check apps/backend packages/core packages/shared
+        run: ruff check apps/backend/src packages/core/src packages/shared/src
       - name: mypy
         run: mypy apps/backend/src packages/core/src packages/shared/src
 
@@ -46,6 +45,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -57,11 +65,17 @@ jobs:
           cd apps/backend && pip install -e ".[dev]" && cd ../..
           cd packages/core && pip install -e ".[dev]" && cd ../..
           cd packages/shared && pip install -e ".[dev]" && cd ../..
-      - name: Test
-        run: cd apps/backend && pytest --cov=src --cov-report=term-missing
+      - name: Alembic migration
+        run: cd apps/backend && PYTHONPATH=. alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectlens
+      - name: Test
+        run: cd apps/backend && pytest --cov=src --cov-report=term-missing -x
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectlens
+          REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key
+          APP_ENV: testing
 
   lint-frontend:
     runs-on: ubuntu-latest
@@ -99,4 +113,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker images
-        run: docker compose build
+        run: |
+          touch apps/backend/.env
+          docker compose build

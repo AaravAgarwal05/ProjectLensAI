@@ -44,12 +44,14 @@ class VectorDocument(BaseModel):
         id: Unique identifier within the collection.
         chunk_id: Link back to the source ``Chunk``.
         vector: The embedding vector as a list of floats.
+        text: The original chunk text (stored for retrieval).
         metadata: Structured :class:`VectorMetadata`.
     """
 
     id: str = ""
     chunk_id: str
     vector: list[float]
+    text: str = ""
     dimensions: int = 0
     metadata: VectorMetadata = Field(default_factory=VectorMetadata)
 

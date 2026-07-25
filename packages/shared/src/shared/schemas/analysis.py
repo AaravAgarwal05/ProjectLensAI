@@ -17,6 +17,7 @@ class AnalysisRequest(BaseModel):
         document_id: Identifier of the document to analyse.
         analysis_type: Type of analysis (e.g. ``"summary"``, ``"qa"``).
         options: Optional configuration key-value pairs for the analysis.
+
     """
 
     document_id: UUID
@@ -30,6 +31,7 @@ class AnalysisResponse(BaseModel):
     Attributes:
         result: The analysis result.
         processing_time: Time taken to generate the result, in seconds.
+
     """
 
     result: AnalysisResult

@@ -20,6 +20,7 @@ class MessageCreate(BaseModel):
         role: Message role (defaults to ``"user"``).
         content: Text content of the message.
         metadata: Arbitrary metadata key-value pairs.
+
     """
 
     conversation_id: UUID | None = None
@@ -35,6 +36,7 @@ class ChatRequest(BaseModel):
         message: The user's input message.
         conversation_id: Optional existing conversation identifier.
         stream: Whether to stream the response tokens.
+
     """
 
     message: str
@@ -49,6 +51,7 @@ class ChatResponse(BaseModel):
         message: The assistant's response message.
         conversation_id: Identifier of the conversation (new or existing).
         sources: List of supporting citations.
+
     """
 
     message: Message

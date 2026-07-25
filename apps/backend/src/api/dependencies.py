@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import get_settings
 from src.database import models  # noqa: F401 — ensure all models registered
-from src.database.models import User
 from src.database import session as db_session
+from src.database.models import User
 
 _security_scheme = HTTPBearer(auto_error=False)
 

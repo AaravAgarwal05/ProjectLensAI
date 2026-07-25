@@ -110,7 +110,7 @@ class PromptBuilder:
             history_lines = [f"{msg.role}: {msg.content}" for msg in ctx.conversation_history]
             parts.append("Conversation history:\n" + "\n".join(history_lines))
 
-        # Context chunks
+        # Context chunks — answer ONLY from this content
         if ctx.chunks:
             chunk_parts: list[str] = []
             for i, chunk in enumerate(ctx.chunks):

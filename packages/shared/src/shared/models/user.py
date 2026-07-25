@@ -16,6 +16,7 @@ class UserPreferences(BaseModel):
         theme: UI theme (``"light"`` or ``"dark"``).
         language: Preferred ISO language code.
         notifications_enabled: Whether push/email notifications are active.
+
     """
 
     theme: str = "light"
@@ -35,6 +36,7 @@ class User(BaseModel):
         preferences: User preference settings.
         created_at: Timestamp of creation.
         updated_at: Timestamp of last update.
+
     """
 
     model_config = {"frozen": True}

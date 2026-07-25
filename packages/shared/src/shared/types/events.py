@@ -18,6 +18,7 @@ class EventData(BaseModel, Generic[T]):
     Attributes:
         event_type: Canonical event type string.
         payload: Strongly-typed payload of type ``T``.
+
     """
 
     event_type: str

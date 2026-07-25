@@ -390,3 +390,17 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/context/chunk_selection.py","timestamp":1784151238817,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784151431819,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/chat/orchestrator.py","timestamp":1784151993050,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784935540249,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784935881017,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784935885390,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/database/models/user.py","timestamp":1784935895403,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/settings.py","timestamp":1784935899907,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/chat.py","timestamp":1784935911386,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/chat.py","timestamp":1784935928253,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/chat.py","timestamp":1784935932981,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/chat.py","timestamp":1784935941005,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/v1/chat.py","timestamp":1784935952574,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/.github/workflows/ci.yml","timestamp":1784935970501,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/llm/test_ollama_provider.py","timestamp":1784936035452,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/frontend/.env.local","timestamp":1784936343685,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/services/processing_service.py","timestamp":1784984849642,"sessionId":null}
