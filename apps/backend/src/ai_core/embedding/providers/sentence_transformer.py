@@ -69,7 +69,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         )
         loaded = SentenceTransformer(self._model_name, **kwargs)
         self._model = loaded
-        dim = loaded.get_embedding_dimension()
+        dim = loaded.get_embedding_dimension()  # type: ignore[operator]
         logger.info("Model loaded. Dimensions: %d", dim or 0)
 
     # ------------------------------------------------------------------
@@ -78,7 +78,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
 
     @property
     def dimensions(self) -> int:
-        d = self.model.get_embedding_dimension()
+        d = self.model.get_embedding_dimension()  # type: ignore[operator]
         return d if d is not None else 0
 
     @property
