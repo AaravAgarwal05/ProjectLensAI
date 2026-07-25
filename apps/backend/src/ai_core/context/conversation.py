@@ -10,11 +10,9 @@ from src.ai_core.context.models import (
     ConversationMessage,
     ConversationSummary,
 )
+from src.ai_core.tokenizer import estimate_tokens
 
 logger = logging.getLogger(__name__)
-
-
-from src.ai_core.tokenizer import estimate_tokens
 
 
 class ConversationManager:

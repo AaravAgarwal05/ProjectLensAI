@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic.main import BaseModel
 
@@ -12,7 +12,7 @@ EventPayload = dict[str, Any]
 T = TypeVar("T")
 
 
-class EventData(BaseModel, Generic[T]):
+class EventData[T](BaseModel):
     """A typed wrapper around event data.
 
     Attributes:

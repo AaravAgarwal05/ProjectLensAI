@@ -1,7 +1,7 @@
 """Generic SQLAlchemy repository with common CRUD operations."""
 
 from collections.abc import Sequence
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from src.database.base import Base
 ModelT = TypeVar("ModelT", bound=Base)
 
 
-class BaseRepository(Generic[ModelT]):
+class BaseRepository[ModelT: Base]:
     """Generic async repository providing standard CRUD methods.
 
     Type-param ``ModelT`` must be a SQLAlchemy declarative model.

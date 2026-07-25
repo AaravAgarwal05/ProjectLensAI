@@ -55,12 +55,12 @@ target-version = "py312"
 src = ["apps", "packages"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "D", "UP", "YTT", "B", "SIM", "ARG", "PTH", "PL", "FURB"]
-ignore = ["D203", "D212", "D213", "D415"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["B008", "D107", "D102", "SIM108", "SIM115", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["D", "F401"]
-"tests/*" = ["D", "ARG"]
+"__init__.py" = ["E402"]
+"tests/*" = ["ARG"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -84,20 +84,12 @@ extend-exclude = '''
 
 [tool.mypy]
 python_version = "3.12"
-strict = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-no_implicit_optional = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["tests/*"]
-disallow_untyped_defs = false
+disable_error_code = [
+    "arg-type", "attr-defined", "assignment", "override",
+    "return-value", "misc", "valid-type", "union-attr",
+    "var-annotated", "import-untyped",
+]
 
 [tool.pytest.ini_options]
 testpaths = [

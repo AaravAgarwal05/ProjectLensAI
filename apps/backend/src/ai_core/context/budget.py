@@ -7,11 +7,9 @@ from typing import Any
 
 from src.ai_core.context.configuration import ContextConfiguration
 from src.ai_core.context.models import ContextBudget, ContextChunk, ConversationMessage
+from src.ai_core.tokenizer import estimate_tokens
 
 logger = logging.getLogger(__name__)
-
-
-from src.ai_core.tokenizer import estimate_tokens
 
 
 class TokenBudgetManager:

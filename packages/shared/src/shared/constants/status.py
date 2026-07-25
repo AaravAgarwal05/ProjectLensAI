@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class DocumentStatus(str, Enum):
+class DocumentStatus(StrEnum):
     """Lifecycle status of a document."""
 
     PENDING = "pending"
@@ -27,7 +27,7 @@ class DocumentStatus(str, Enum):
     """Document has been soft-deleted."""
 
 
-class ProcessingStatus(str, Enum):
+class ProcessingStatus(StrEnum):
     """Granular processing status for pipeline stages."""
 
     QUEUED = "queued"

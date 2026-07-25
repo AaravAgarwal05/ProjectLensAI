@@ -11,10 +11,9 @@ import logging
 from dataclasses import dataclass
 
 from src.ai_core.context.models import ContextChunk
+from src.ai_core.tokenizer import estimate_tokens as _estimate_tokens
 
 logger = logging.getLogger(__name__)
-
-from src.ai_core.tokenizer import estimate_tokens as _estimate_tokens
 
 
 @dataclass

@@ -1,14 +1,14 @@
 """Generic repository interface."""
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 
 
-class BaseRepository(ABC, Generic[T]):
+class BaseRepository[T: BaseModel](ABC):
     """Abstract generic repository for CRUD operations.
 
     Type parameter *T* must be a subclass of ``pydantic.BaseModel``.

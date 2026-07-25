@@ -76,10 +76,7 @@ def _build_orchestrator(
     should fall back to a placeholder response).
     """
     try:
-        if model_name:
-            llm_config = LLMConfiguration(model_name=model_name)
-        else:
-            llm_config = LLMConfiguration()
+        llm_config = LLMConfiguration(model_name=model_name) if model_name else LLMConfiguration()
         llm_provider = OllamaProvider(config=llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
         citation_engine = CitationEngine()

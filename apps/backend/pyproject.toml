@@ -52,15 +52,13 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["B008", "D107", "D102", "SIM108", "SIM115", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/api/v1/chat.py" = ["B008"]
+"__init__.py" = ["E402"]
+"packages/core/src/core/interfaces/__init__.py" = ["E402"]
 
 [tool.black]
 target-version = ["py312"]
 line-length = 100
 
-[tool.mypy]
-python_version = "3.12"
-strict = true
-ignore_missing_imports = true

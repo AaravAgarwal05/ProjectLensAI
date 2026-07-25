@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import Field
 from pydantic.main import BaseModel
@@ -11,7 +11,7 @@ from pydantic.main import BaseModel
 T = TypeVar("T")
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """A generic paginated response envelope.
 
     Attributes:
@@ -30,7 +30,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     has_more: bool = False
 
 
-class APIResponse(BaseModel, Generic[T]):
+class APIResponse[T](BaseModel):
     """A generic API response envelope.
 
     Attributes:

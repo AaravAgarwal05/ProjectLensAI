@@ -470,3 +470,16 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/context/configuration.py","timestamp":1784979056267,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/configuration.py","timestamp":1784979062689,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/llm/prompt_builder.py","timestamp":1784979069011,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784990909562,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784990920149,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784990954812,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/pyproject.toml","timestamp":1784990998401,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/chat/context_truncation.py","timestamp":1784991032000,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/context/budget.py","timestamp":1784991046944,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/context/conversation.py","timestamp":1784991066268,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/api/dependencies.py","timestamp":1784991084219,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/pyproject.toml","timestamp":1784991129566,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/pyproject.toml","timestamp":1784991305722,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/pyproject.toml","timestamp":1784991487954,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/pyproject.toml","timestamp":1784991901142,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784991908289,"sessionId":null}
