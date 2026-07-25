@@ -407,3 +407,6 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/alembic/versions/782274bc742a_add_users_table.py","timestamp":1784994157674,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/alembic/versions/782274bc742a_add_users_table.py","timestamp":1784994165039,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784994558285,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1784995344847,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/pyproject.toml","timestamp":1784995459097,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/ai_core/embedding/providers/sentence_transformer.py","timestamp":1784995609380,"sessionId":null}
