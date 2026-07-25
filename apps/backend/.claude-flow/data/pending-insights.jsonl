@@ -404,3 +404,5 @@
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/tests/llm/test_ollama_provider.py","timestamp":1784936035452,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/frontend/.env.local","timestamp":1784936343685,"sessionId":null}
 {"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/src/services/processing_service.py","timestamp":1784984849642,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/alembic/versions/782274bc742a_add_users_table.py","timestamp":1784994157674,"sessionId":null}
+{"type":"edit","file":"/home/aarav/ProjectLens-AI/apps/backend/alembic/versions/782274bc742a_add_users_table.py","timestamp":1784994165039,"sessionId":null}
