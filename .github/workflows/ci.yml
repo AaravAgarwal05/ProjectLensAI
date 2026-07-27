@@ -18,12 +18,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
-      - name: Install
-        run: |
-          cd apps/backend && pip install -e ".[dev]" && cd ../..
-          cd packages/core && pip install -e ".[dev]" && cd ../..
-          cd packages/shared && pip install -e ".[dev]" && cd ../..
+      - name: Install lint tools
+        run: pip install ruff mypy
       - name: Ruff
         run: ruff check apps/backend/src packages/core/src packages/shared/src
       - name: mypy
@@ -56,21 +52,22 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-          cache: "pip"
-      - name: Install
-        run: |
-          cd apps/backend && pip install -e ".[dev]" && cd ../..
-          cd packages/core && pip install -e ".[dev]" && cd ../..
-          cd packages/shared && pip install -e ".[dev]" && cd ../..
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: apps/backend
+        run: uv sync --extra dev
       - name: Alembic migration
-        run: cd apps/backend && PYTHONPATH=. alembic upgrade head
+        working-directory: apps/backend
+        run: uv run alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectlens
       - name: Test
-        run: cd apps/backend && pytest --cov=src --cov-report=term-missing -x
+        working-directory: apps/backend
+        run: uv run pytest --cov=src --cov-report=term-missing -x
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/projectlens
           REDIS_URL: redis://localhost:6379/0

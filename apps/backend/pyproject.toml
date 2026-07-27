@@ -24,11 +24,14 @@ dependencies = [
     "python-multipart>=0.0.6",
     "tiktoken>=0.7,<1",
     "aiohttp>=3.9,<4",
-    "sentence-transformers>=2.7,<4",
     "httpx>=0.26,<1",
     "supabase>=2.0,<3",
     "pymupdf>=1.23,<2",
     "python-docx>=1.1,<2",
+    "psutil>=6.0,<7",
+    "chromadb>=1.5,<2",
+    "projectlens-shared",
+    "projectlens-core",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +43,9 @@ dev = [
     "ruff>=0.2,<1",
     "black>=24.1,<25",
     "mypy>=1.8,<2",
+]
+ai = [
+    "sentence-transformers>=2.7,<4",
 ]
 
 [tool.pytest.ini_options]
@@ -64,4 +70,8 @@ ignore = ["B008", "D107", "D102", "SIM108", "SIM115", "E501"]
 [tool.black]
 target-version = ["py312"]
 line-length = 100
+
+[tool.uv.sources]
+projectlens-shared = { path = "../../packages/shared", editable = true }
+projectlens-core = { path = "../../packages/core", editable = true }
 

@@ -1,8 +1,7 @@
 """Hybrid retriever — combines dense vector search with keyword search.
 
 Uses weighted scoring, duplicate merging, and score normalisation.
-Keyword search is a simple term-frequency fallback (BM25-like via
-in-memory term counting) when no external full-text engine is available.
+Sparse leg uses BM25Okapi for proper keyword scoring.
 """
 
 from __future__ import annotations
@@ -21,6 +20,76 @@ from src.ai_core.retrieval.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ── inline BM25Okapi ─────────────────────────────────────────────────────────
+
+
+class _BM25Okapi:
+    """BM25Okapi scoring — built lazily from a list of documents.
+
+    Parameters
+    ----------
+    k1 : float
+        Term-frequency saturation (default 1.2).
+    b : float
+        Length normalisation (default 0.75).
+    """
+
+    def __init__(self, k1: float = 1.2, b: float = 0.75) -> None:
+        self.k1 = k1
+        self.b = b
+        self._docs: list[str] = []
+        self._doc_lens: list[int] = []
+        self._avgdl: float = 0.0
+        self._n_docs: int = 0
+        self._df: Counter[str] = Counter()  # document frequency per term
+        self._built: bool = False
+
+    def build(self, docs: list[str]) -> None:
+        """Pre-compute document lengths and term document frequencies."""
+        self._docs = docs
+        self._doc_lens = [len(d.split()) for d in docs]
+        self._n_docs = len(docs)
+        self._avgdl = sum(self._doc_lens) / self._n_docs if self._n_docs else 0.0
+
+        # Count how many docs each term appears in
+        self._df.clear()
+        for doc in docs:
+            seen = set(doc.lower().split())
+            for term in seen:
+                self._df[term] += 1
+
+        self._built = True
+
+    def score(self, query: str, doc_idx: int) -> float:
+        """BM25 score for *query* against document at *doc_idx*."""
+        if not self._built or doc_idx >= self._n_docs:
+            return 0.0
+
+        query_terms = query.lower().split()
+        doc = self._docs[doc_idx].lower()
+        doc_len = self._doc_lens[doc_idx]
+        doc_tokens = doc.split()
+        doc_tf = Counter(doc_tokens)
+
+        total = 0.0
+        for term in set(query_terms):
+            tf = doc_tf.get(term, 0)
+            if tf == 0:
+                continue
+            df = self._df.get(term, 1)
+            # IDF with smoothing
+            idf = math.log((self._n_docs - df + 0.5) / (df + 0.5) + 1.0)
+            # TF saturation
+            tf_norm = tf * (self.k1 + 1) / (tf + self.k1 * (1 - self.b + self.b * doc_len / self._avgdl))
+            total += idf * tf_norm
+
+        return total
+
+    def score_all(self, query: str) -> list[float]:
+        """Score *query* against every document in the index."""
+        return [self.score(query, i) for i in range(self._n_docs)]
 
 
 class HybridRetriever(Retriever):
@@ -51,6 +120,10 @@ class HybridRetriever(Retriever):
         self._score_threshold = score_threshold
         self._collection_name = collection or "default"
         self._chroma_collection = chroma_collection
+        # Lazily-built BM25 index
+        self._bm25 = _BM25Okapi()
+        self._bm25_doc_version: int = 0
+        self._bm25_n_docs: int = 0
 
     @property
     def retriever_name(self) -> str:
@@ -121,14 +194,10 @@ class HybridRetriever(Retriever):
         collection: str,
         top_k: int,
     ) -> list[RetrievedChunk]:
-        tokens = query.text.lower().split()
-        term_counts: Counter[str] = Counter(tokens)
-        total_terms = sum(term_counts.values())
-        if total_terms == 0:
+        query_text = query.text.strip()
+        if not query_text:
             return []
 
-        # If we have a chroma collection, pull all documents for keyword scoring
-        # Otherwise build scored chunks from the dense result metadata
         chunks: list[RetrievedChunk] = []
         if self._chroma_collection is not None:
             try:
@@ -136,38 +205,31 @@ class HybridRetriever(Retriever):
                 all_ids = all_data.get("ids", [])
                 all_docs = all_data.get("documents", [])
                 all_metas = all_data.get("metadatas", [])
+
+                if not all_ids:
+                    return []
+
+                # Rebuild BM25 index if document set changed
+                if len(all_ids) != self._bm25_n_docs:
+                    self._bm25.build(all_docs)
+                    self._bm25_n_docs = len(all_ids)
+                    self._bm25_doc_version += 1
+
+                scores = self._bm25.score_all(query_text)
                 for i in range(len(all_ids)):
-                    doc_text = (all_docs[i] or "").lower()
-                    score = self._tf_score(doc_text, term_counts, total_terms)
                     meta = all_metas[i] if all_metas else {}
                     chunks.append(
                         RetrievedChunk(
                             chunk_id=all_ids[i],
                             content=all_docs[i] or "",
-                            score=score,
+                            score=scores[i],
                             metadata=meta,
                             document_id=meta.get("report_id") or meta.get("document_id"),
                         )
                     )
             except Exception:
-                logger.debug("Sparse fallback: chroma.get() failed, using empty")
+                logger.debug("Sparse fallback: chroma.get() or BM25 failed, using empty")
         return chunks
-
-    def _tf_score(self, text: str, term_counts: Counter[str], total_terms: int) -> float:
-        """Simple TF-based relevance score."""
-        if total_terms == 0:
-            return 0.0
-        text_tokens = text.split()
-        text_len = len(text_tokens)
-        if text_len == 0:
-            return 0.0
-        score = 0.0
-        for term, count in term_counts.items():
-            tf = text_tokens.count(term) / text_len
-            count_t = text_tokens.count(term)
-            idf = math.log((len(text_tokens) + 1) / (1 + count_t)) if count_t > 0 else 0
-            score += (tf * idf) * count
-        return score / total_terms
 
     def _normalise_scores(self, chunks: list[RetrievedChunk]) -> None:
         if not chunks:
@@ -215,6 +277,9 @@ class HybridRetriever(Retriever):
     def configure(self, params: dict[str, Any]) -> None:
         if "weights" in params:
             self._weights.update(params["weights"])
+            total = sum(self._weights.values())
+            if abs(total - 1.0) > 1e-6:
+                self._weights = {k: v / total for k, v in self._weights.items()}
         if "top_k" in params:
             self._top_k = int(params["top_k"])
         if "score_threshold" in params:

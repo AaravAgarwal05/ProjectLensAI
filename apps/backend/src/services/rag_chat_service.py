@@ -6,6 +6,8 @@ and generates answers via the Ollama LLM.
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
 from typing import Any
@@ -51,6 +53,16 @@ class RAGChatService:
         self._chroma_client: Any | None = None
 
     # ------------------------------------------------------------------
+    # Request tracing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _make_trace_id() -> str:
+        """Generate a short request trace ID for log correlation."""
+        import uuid
+        return uuid.uuid4().hex[:12]
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -58,8 +70,18 @@ class RAGChatService:
         self,
         message: str,
         report_ids: list[str],
+        trace_id: str | None = None,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Generate an answer using RAG over the given report IDs.
+
+        Parameters
+        ----------
+        message : str
+            The user's question.
+        report_ids : list[str]
+            Document report IDs to search.
+        trace_id : str or None
+            Optional request trace ID for log correlation.
 
         Returns
         -------
@@ -67,9 +89,13 @@ class RAGChatService:
             citations_list contains dicts with keys ``report_id``, ``chunk_id``,
             ``score``, ``report_title``, ``page_number``, ``section_name``.
         """
-        chunks = await self._retrieve_chunks(message, report_ids)
+        tid = trace_id or self._make_trace_id()
+        logger.info("[%s] RAG answer: %d reports, query=%s", tid, len(report_ids), message[:80])
+
+        chunks = await self._retrieve_chunks(message, report_ids, trace_id=tid)
 
         if not chunks:
+            logger.info("[%s] No relevant chunks found", tid)
             return (
                 "I couldn't find any relevant content in the document "
                 "to answer your question. Make sure the document has been "
@@ -107,22 +133,24 @@ class RAGChatService:
             for c in chunks[: self._top_k]
         ]
 
+        logger.info("[%s] RAG answer: %d chunks, %d tokens", tid, len(chunks), len(response.text))
         return response.text, citations
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _embed_with_cache(self, text: str) -> list[float]:
+    async def _embed_with_cache(self, text: str, trace_id: str = "") -> list[float]:
         """Embed *text*, using Redis as a vector cache for Ollama embeddings.
 
         Falls back to uncached embedding when Redis is unavailable.
+        Cache key uses SHA-256 to avoid Python's per-process salted hash().
         """
         # Only cache for Ollama embedding provider
         if self._embedding_provider.provider_name != "ollama":
             return await self._embedding_provider.embed(text)
 
-        cache_key = "embedding:" + str(hash(text))
+        cache_key = "embedding:" + hashlib.sha256(text.encode()).hexdigest()
         try:
             from src.infra.redis import get_redis
 
@@ -131,11 +159,11 @@ class RAGChatService:
             if cached is not None:
                 parsed = json.loads(cached)
                 if isinstance(parsed, list) and all(isinstance(v, float) for v in parsed):
-                    logger.debug("Embedding cache HIT for key=%s", cache_key)
+                    logger.debug("[%s] Embedding cache HIT key=%s", trace_id, cache_key[:16])
                     return parsed
-                logger.debug("Embedding cache miss (invalid format) for key=%s", cache_key)
+                logger.debug("[%s] Embedding cache miss (invalid format) key=%s", trace_id, cache_key[:16])
         except Exception:
-            logger.warning("Redis cache unavailable for embeddings, falling through", exc_info=True)
+            logger.warning("[%s] Redis cache unavailable for embeddings, falling through", trace_id, exc_info=True)
 
         # Cache miss or Redis unavailable — embed fresh
         vector = await self._embedding_provider.embed(text)
@@ -145,9 +173,9 @@ class RAGChatService:
             from src.infra.redis import set_json
 
             await set_json(cache_key, vector, expire=3600)
-            logger.debug("Embedding cache SET for key=%s", cache_key)
+            logger.debug("[%s] Embedding cache SET key=%s", trace_id, cache_key[:16])
         except Exception:
-            logger.warning("Failed to cache embedding in Redis", exc_info=True)
+            logger.warning("[%s] Failed to cache embedding in Redis", trace_id, exc_info=True)
 
         return vector
 
@@ -155,20 +183,23 @@ class RAGChatService:
         self,
         message: str,
         report_ids: list[str],
+        trace_id: str = "",
     ) -> list[dict[str, Any]]:
         """Retrieve relevant chunks from ChromaDB for each report."""
         all_chunks: list[dict[str, Any]] = []
 
         # Embed once, reuse across all report collections
-        query_vec = await self._embed_with_cache(message)
+        query_vec = await self._embed_with_cache(message, trace_id=trace_id)
 
         for rid in report_ids:
-            collection = self._get_collection(rid)
+            collection = await self._get_collection(rid)
             if collection is None:
-                logger.info("No ChromaDB collection for report %s, skipping", rid)
+                logger.info("[%s] No ChromaDB collection for report %s, skipping", trace_id, rid)
                 continue
 
-            results = collection.query(
+            # Run synchronous ChromaDB query in thread pool to avoid blocking event loop
+            results = await asyncio.to_thread(
+                collection.query,
                 query_embeddings=[query_vec],
                 n_results=self._top_k,
                 include=["metadatas", "distances", "documents"],
@@ -191,6 +222,7 @@ class RAGChatService:
                 )
 
         all_chunks.sort(key=lambda c: c["score"], reverse=True)
+        logger.debug("[%s] Retrieved %d chunks across %d reports", trace_id, len(all_chunks), len(report_ids))
         return all_chunks
 
     def _format_context(self, chunks: list[dict[str, Any]]) -> str:
@@ -200,20 +232,29 @@ class RAGChatService:
             parts.append(f"[{i + 1}] (relevance: {c['score']:.2f})\n{c['content']}")
         return "\n\n---\n\n".join(parts)
 
-    def _get_collection(self, report_id: str) -> Any | None:
+    async def _get_collection(self, report_id: str) -> Any | None:
         """Get the ChromaDB collection for *report_id*, or None."""
-        client = self._get_chroma_client()
+        client = await self._get_chroma_client()
         try:
-            return client.get_collection(name=f"report_{report_id}")
-        except Exception:
+            return await asyncio.to_thread(client.get_collection, name=f"report_{report_id}")
+        except ValueError as exc:
+            err = str(exc).lower()
+            if "does not exist" in err or "not found" in err:
+                logger.debug("Collection report_%s does not exist yet", report_id)
+            else:
+                logger.warning("ChromaDB error getting report_%s: %s", report_id, exc)
+            return None
+        except Exception as exc:
+            logger.error("Unexpected ChromaDB error for report_%s: %s", report_id, exc)
             return None
 
-    def _get_chroma_client(self) -> Any:
-        """Lazy-init a ChromaDB HTTP client."""
+    async def _get_chroma_client(self) -> Any:
+        """Lazy-init a ChromaDB HTTP client (runs sync init in thread pool)."""
         if self._chroma_client is None:
             import chromadb
 
-            self._chroma_client = chromadb.HttpClient(
+            self._chroma_client = await asyncio.to_thread(
+                chromadb.HttpClient,
                 host=self._chroma_host,
                 port=self._chroma_port,
             )

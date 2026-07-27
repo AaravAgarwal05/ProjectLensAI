@@ -2,6 +2,8 @@
 
 import pytest
 
+pytest.importorskip("sentence_transformers")
+
 from src.ai_core.embedding.providers.sentence_transformer import SentenceTransformerProvider
 
 
