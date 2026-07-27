@@ -7,7 +7,7 @@ PYTHON_DIRS="apps/backend packages/core packages/shared"
 
 # ruff
 echo "Running ruff..."
-ruff check $PYTHON_DIRS
+uv run --project apps/backend ruff check $PYTHON_DIRS
 echo "  ruff passed."
 
 # mypy
@@ -16,7 +16,7 @@ for dir in $PYTHON_DIRS; do
     src_dir="$dir/src"
     if [ -d "$src_dir" ]; then
         echo "  mypy: $src_dir"
-        mypy "$src_dir"
+        uv run --project apps/backend mypy "$src_dir"
     fi
 done
 echo "  mypy passed."

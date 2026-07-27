@@ -3,6 +3,12 @@ set -euo pipefail
 
 echo "=== ProjectLens AI Setup ==="
 
+# Check for uv
+if ! command -v uv &> /dev/null; then
+    echo "uv not found — installing..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+
 # Copy environment file if not present
 if [ ! -f .env ]; then
     if [ -f .env.example ]; then
@@ -13,11 +19,9 @@ if [ ! -f .env ]; then
     fi
 fi
 
-# Install Python dependencies
+# Install Python dependencies via uv
 echo "Installing Python dependencies..."
-pip install -e ".[dev]" 2>/dev/null || pip install -e "."
-pip install -e "packages/core" 2>/dev/null || true
-pip install -e "packages/shared" 2>/dev/null || true
+cd apps/backend && uv sync --extra dev && cd ../..
 
 # Check for Node.js and install frontend dependencies
 if command -v npm &> /dev/null; then

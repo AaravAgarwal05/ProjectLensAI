@@ -7,7 +7,7 @@ PYTHON_DIRS="apps/backend packages/core packages/shared"
 
 # ruff format
 echo "Running ruff format..."
-ruff format $PYTHON_DIRS
+uv run --project apps/backend ruff format $PYTHON_DIRS
 echo "  ruff format complete."
 
 # npm format

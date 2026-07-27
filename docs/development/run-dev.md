@@ -1,6 +1,6 @@
 # Development Run Guide
 
-> **Last updated:** 2026-07-08
+> **Last updated:** 2026-07-27
 > **Target:** Local development machine
 
 ---
@@ -38,6 +38,12 @@ This single command:
 | npm | 10+ | `npm --version` |
 | Docker | 24+ | `docker --version` |
 | Docker Compose | v2 | `docker compose version` |
+| uv | latest | `uv --version` |
+
+Install uv if missing:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ### 2. Environment Variables
 
@@ -81,15 +87,19 @@ View logs:
 
 ```bash
 cd apps/backend
-pip install -e ".[dev]"
+uv sync --extra dev
 cd ../..
 ```
+
+This installs all Python dependencies including dev tools (pytest, ruff, mypy)
+and the local monorepo packages (`projectlens-shared`, `projectlens-core`) as
+editable path dependencies.
 
 ### 5. Run Database Migrations
 
 ```bash
 cd apps/backend
-alembic upgrade head
+uv run alembic upgrade head
 cd ../..
 ```
 
@@ -97,7 +107,7 @@ cd ../..
 
 ```bash
 cd apps/backend
-PYTHONPATH=. uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The API is available at: http://localhost:8000
@@ -171,6 +181,25 @@ docker compose -f docker-compose.dev.yml ps
 docker compose -f docker-compose.dev.yml top
 ```
 
+### Managing Dependencies with uv
+
+```bash
+# Add a dependency
+cd apps/backend && uv add requests
+
+# Add a dev dependency
+cd apps/backend && uv add --dev pytest-asyncio
+
+# Add an optional dependency
+cd apps/backend && uv add --extra ai sentence-transformers
+
+# Update all dependencies from lock file
+cd apps/backend && uv sync --extra dev
+
+# Run a command in the venv
+cd apps/backend && uv run python -c "import chromadb; print('ok')"
+```
+
 ---
 
 ## Troubleshooting
@@ -198,16 +227,21 @@ sudo usermod -aG docker $USER
 docker compose -f docker-compose.dev.yml down -v
 docker compose -f docker-compose.dev.yml up -d
 cd apps/backend
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
 ### Python Import Errors
 
-Ensure all packages are installed in editable mode:
+Ensure all packages are installed:
 ```bash
-pip install -e apps/backend
-pip install -e packages/core
-pip install -e packages/shared
+cd apps/backend && uv sync --extra dev
+```
+
+### uv Command Not Found
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Then restart your terminal
 ```
 
 ---

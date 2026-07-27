@@ -14,7 +14,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY apps/backend/pyproject.toml apps/backend/
 COPY packages/shared/pyproject.toml packages/shared/
 COPY packages/core/pyproject.toml packages/core/
-COPY uv.lock .
+COPY apps/backend/uv.lock apps/backend/
 
 # Install dependencies
 RUN cd apps/backend && uv sync --extra dev

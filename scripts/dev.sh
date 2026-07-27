@@ -50,23 +50,21 @@ echo -e "${GREEN}✓ ChromaDB is ready${NC}"
 # Run migrations
 if [ -d "apps/backend/alembic" ]; then
     echo -e "${YELLOW}Running database migrations...${NC}"
-    cd apps/backend
-    alembic upgrade head 2>/dev/null && echo -e "${GREEN}✓ Migrations applied${NC}" || echo -e "${YELLOW}⚠ No migrations to apply${NC}"
-    cd ../..
+    cd apps/backend && uv run alembic upgrade head && cd ../.. \
+        && echo -e "${GREEN}✓ Migrations applied${NC}" \
+        || echo -e "${YELLOW}⚠ No migrations to apply${NC}"
 fi
 
 # Start backend
 echo -e "${YELLOW}Starting backend (uvicorn)...${NC}"
-cd apps/backend
-PYTHONPATH=. uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
+cd apps/backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 cd ../..
 
 # Start frontend
 if [ -d "apps/frontend" ]; then
     echo -e "${YELLOW}Starting frontend (Next.js)...${NC}"
-    cd apps/frontend
-    npm run dev &
+    cd apps/frontend && npm run dev &
     FRONTEND_PID=$!
     cd ../..
 fi

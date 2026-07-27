@@ -3,9 +3,9 @@ set -euo pipefail
 
 echo "=== Running tests ==="
 
-# Python tests
+# Python tests via uv
 echo "Running pytest..."
-python -m pytest -v --tb=short --strict-markers
+cd apps/backend && uv run pytest -v --tb=short --strict-markers && cd ../..
 echo "  pytest passed."
 
 # Node tests

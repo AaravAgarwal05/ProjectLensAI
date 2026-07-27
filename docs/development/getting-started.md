@@ -13,6 +13,7 @@ For a detailed step-by-step guide, see [Development Run Guide](run-dev.md).
 - Python 3.12+
 - Node.js 20+
 - Docker & Docker Compose v2
+- [uv](https://docs.astral.sh/uv/) (package manager) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
 ## Manual Setup
 
@@ -25,8 +26,8 @@ docker compose -f docker-compose.dev.yml up -d
 
 # 3. Install backend
 cd apps/backend
-pip install -e ".[dev]"
-alembic upgrade head
+uv sync --extra dev
+uv run alembic upgrade head
 cd ../..
 
 # 4. Install frontend
@@ -35,7 +36,7 @@ npm install
 cd ../..
 
 # 5. Start development servers (separate terminals)
-cd apps/backend && PYTHONPATH=. uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd apps/backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 cd apps/frontend && npm run dev
 ```
 

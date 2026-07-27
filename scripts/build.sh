@@ -3,18 +3,9 @@ set -euo pipefail
 
 echo "=== Building ProjectLens AI ==="
 
-# Build backend
+# Build backend + shared packages via uv
 echo "Building backend..."
-pip install -e "apps/backend" 2>/dev/null || pip install -e .
-
-# Build shared packages
-echo "Building shared packages..."
-for pkg in packages/core packages/shared; do
-    if [ -d "$pkg" ]; then
-        echo "  Building $pkg..."
-        pip install -e "$pkg" 2>/dev/null || true
-    fi
-done
+cd apps/backend && uv sync --extra dev && cd ../..
 
 # Build frontend
 if [ -d "apps/frontend" ]; then
