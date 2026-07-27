@@ -50,6 +50,7 @@ services:
       watch:
         - path: ./apps/backend/src
           action: sync
+          target: /app/src
 
   frontend:
     build:
