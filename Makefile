@@ -50,16 +50,16 @@ clean:
 
 ## Docker (Development)
 docker-up:
-	@echo "Starting development infrastructure..."
-	@docker compose -f docker-compose.dev.yml up -d
+	@echo "Starting development services..."
+	@docker compose -f docker-compose.yml up -d
 
 docker-down:
-	@echo "Stopping development infrastructure..."
-	@docker compose -f docker-compose.dev.yml down
+	@echo "Stopping development services..."
+	@docker compose -f docker-compose.yml down
 
 docker-reset:
-	@echo "Resetting development infrastructure..."
-	@docker compose -f docker-compose.dev.yml down -v
+	@echo "Resetting development services..."
+	@docker compose -f docker-compose.yml down -v
 
 ## Docker (Production)
 deploy:

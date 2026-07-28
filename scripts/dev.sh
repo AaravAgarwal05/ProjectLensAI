@@ -11,38 +11,43 @@ echo -e "${BLUE}╔════════════════════�
 echo -e "${BLUE}║     ProjectLens AI — Dev Environment    ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════╝${NC}"
 
-# Ensure .env.local exists
-if [ ! -f ".env.local" ]; then
-    if [ -f ".env.local.example" ]; then
-        echo -e "${YELLOW}⚠ .env.local not found — copying from .env.local.example${NC}"
-        cp .env.local.example .env.local
+# Ensure apps/backend/.env.local exists (read by pydantic-settings for native dev)
+if [ ! -f "apps/backend/.env.local" ]; then
+    if [ -f "apps/backend/.env.example" ]; then
+        echo -e "${YELLOW}⚠ apps/backend/.env.local not found — copying from apps/backend/.env.example${NC}"
+        cp apps/backend/.env.example apps/backend/.env.local
     else
-        echo -e "${RED}✗ .env.local.example not found — create .env.local manually${NC}"
+        echo -e "${RED}✗ apps/backend/.env.example not found — create apps/backend/.env.local manually${NC}"
         exit 1
     fi
 fi
 
-# Start infrastructure
+# Also ensure root .env.local exists (used by Docker compose as fallback)
+if [ ! -f ".env.local" ] && [ -f "config/.env.local.example" ]; then
+    cp config/.env.local.example .env.local
+fi
+
+# Start infrastructure only (backend/frontend run natively for hot-reload)
 echo -e "${YELLOW}Starting Docker infrastructure (PostgreSQL, ChromaDB, Redis)...${NC}"
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml up -d postgres chroma redis
 
 # Wait for PostgreSQL
 echo -e "${YELLOW}Waiting for PostgreSQL to be healthy...${NC}"
-until docker compose -f docker-compose.dev.yml exec -T postgres pg_isready -U postgres 2>/dev/null; do
+until docker compose -f docker-compose.yml exec -T postgres pg_isready -U postgres 2>/dev/null; do
     sleep 2
 done
 echo -e "${GREEN}✓ PostgreSQL is ready${NC}"
 
 # Wait for Redis
 echo -e "${YELLOW}Waiting for Redis to be healthy...${NC}"
-until docker compose -f docker-compose.dev.yml exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do
+until docker compose -f docker-compose.yml exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do
     sleep 1
 done
 echo -e "${GREEN}✓ Redis is ready${NC}"
 
 # Wait for ChromaDB
 echo -e "${YELLOW}Waiting for ChromaDB to be healthy...${NC}"
-until curl -s http://localhost:8001/api/v1/heartbeat 2>/dev/null | grep -q true; do
+until curl -s http://localhost:8001/api/v2/heartbeat 2>/dev/null | grep -q nanosecond; do
     sleep 2
 done
 echo -e "${GREEN}✓ ChromaDB is ready${NC}"

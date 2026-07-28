@@ -13,7 +13,7 @@
 
 ```bash
 # Start infrastructure
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml up -d
 
 # Stop
 ./scripts/down.sh
@@ -28,7 +28,7 @@ Services: PostgreSQL 16 + pgvector, ChromaDB, Redis 7
 
 ```bash
 # Deploy
-cp .env.production.example .env.production
+cp config/.env.production.example .env.production
 # ... edit .env.production with real values ...
 ./scripts/deploy.sh
 
@@ -62,10 +62,10 @@ Development:                       Production:
 
 | File | Purpose |
 |------|---------|
-| `.env.example` | Template with all variables documented |
-| `.env.local.example` | Development defaults |
+| `config/.env.example` | Template with all variables documented |
+| `config/.env.local.example` | Development defaults |
 | `.env.local` | Local dev overrides (gitignored) |
-| `.env.production.example` | Production template |
+| `config/.env.production.example` | Production template |
 | `.env.production` | Production secrets (gitignored) |
 
 ## Production Checklist

@@ -13,13 +13,13 @@ echo -e "${BLUE}╚════════════════════�
 
 # Check .env.production exists
 if [ ! -f ".env.production" ]; then
-    if [ -f ".env.production.example" ]; then
+    if [ -f "config/.env.production.example" ]; then
         echo -e "${RED}✗ .env.production not found${NC}"
-        echo -e "${YELLOW}  Copy from template: cp .env.production.example .env.production${NC}"
+        echo -e "${YELLOW}  Copy from template: cp config/.env.production.example .env.production${NC}"
         echo -e "${YELLOW}  Then edit .env.production with real values before deploying.${NC}"
         exit 1
     else
-        echo -e "${RED}✗ .env.production.example not found — cannot deploy${NC}"
+        echo -e "${RED}✗ config/.env.production.example not found — cannot deploy${NC}"
         exit 1
     fi
 fi

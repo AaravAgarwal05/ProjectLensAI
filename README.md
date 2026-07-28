@@ -79,10 +79,10 @@ This starts PostgreSQL, ChromaDB, Redis via Docker, runs migrations, and launche
 
 ```bash
 # 1. Environment
-cp .env.local.example .env.local
+cp config/.env.local.example .env.local
 
 # 2. Start infrastructure
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml up -d
 
 # 3. Backend
 cd apps/backend

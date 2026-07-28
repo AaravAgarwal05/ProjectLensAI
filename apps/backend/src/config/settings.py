@@ -38,13 +38,26 @@ class AppSettings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # ChromaDB
+    CHROMA_HOST: str = "localhost"
+    CHROMA_PORT: int = 8000
+
+    # Ollama
+    OLLAMA_HOST: str = "localhost"
+    OLLAMA_PORT: int = 11434
+
+    @property
+    def OLLAMA_BASE_URL(self) -> str:
+        return f"http://{self.OLLAMA_HOST}:{self.OLLAMA_PORT}"
+
     # Logging
     LOG_LEVEL: str = "DEBUG"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.local", ".env"],
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
 

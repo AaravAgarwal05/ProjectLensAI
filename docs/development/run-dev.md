@@ -18,7 +18,7 @@ This guide covers running ProjectLens AI in development mode. The dev environmen
 ```
 
 This single command:
-1. Creates `.env.local` from `.env.local.example` if missing
+1. Creates `.env.local` from `config/.env.local.example` if missing
 2. Starts PostgreSQL, ChromaDB, Redis via Docker Compose
 3. Waits for each service health check to pass
 4. Runs Alembic database migrations
@@ -48,7 +48,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Environment Variables
 
 ```bash
-cp .env.local.example .env.local
+cp config/.env.local.example .env.local
 ```
 
 Key dev defaults (from `.env.local`):
@@ -61,7 +61,7 @@ Key dev defaults (from `.env.local`):
 ### 3. Start Infrastructure (Docker)
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml up -d
 ```
 
 This starts three containers:
@@ -74,7 +74,7 @@ This starts three containers:
 
 Check status:
 ```bash
-docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.yml ps
 ```
 
 View logs:
@@ -147,7 +147,7 @@ curl http://localhost:8000/api/v1/health
 ### Check Database Connection
 
 ```bash
-docker compose -f docker-compose.dev.yml exec postgres psql -U postgres -d projectlens -c "\dt"
+docker compose -f docker-compose.yml exec postgres psql -U postgres -d projectlens -c "\dt"
 ```
 
 ---
@@ -177,8 +177,8 @@ docker compose -f docker-compose.dev.yml exec postgres psql -U postgres -d proje
 ### Docker Service Health
 
 ```bash
-docker compose -f docker-compose.dev.yml ps
-docker compose -f docker-compose.dev.yml top
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml top
 ```
 
 ### Managing Dependencies with uv
@@ -209,7 +209,7 @@ cd apps/backend && uv run python -c "import chromadb; print('ok')"
 ```bash
 # Check what's using port 5432
 sudo lsof -i :5432
-# Kill the process or change the port mapping in docker-compose.dev.yml
+# Kill the process or change the port mapping in docker-compose.yml
 ```
 
 ### Docker Permission Denied
@@ -224,8 +224,8 @@ sudo usermod -aG docker $USER
 
 ```bash
 # Reset the database
-docker compose -f docker-compose.dev.yml down -v
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml down -v
+docker compose -f docker-compose.yml up -d
 cd apps/backend
 uv run alembic upgrade head
 ```

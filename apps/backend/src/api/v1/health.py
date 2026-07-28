@@ -42,7 +42,10 @@ async def _check_chromadb() -> dict[str, Any]:
     try:
         import chromadb
 
-        client = chromadb.HttpClient("localhost", 8001)
+        settings = get_settings()
+        host = settings.CHROMA_HOST or "localhost"
+        port = settings.CHROMA_PORT or 8000
+        client = chromadb.HttpClient(host, port)
         start = time.monotonic()
         client.heartbeat()
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -55,9 +58,10 @@ async def _check_chromadb() -> dict[str, Any]:
 async def _check_ollama() -> dict[str, Any]:
     """Check Ollama connectivity by fetching model tags."""
     try:
+        settings = get_settings()
         async with httpx.AsyncClient(timeout=5) as client:
             start = time.monotonic()
-            resp = await client.get("http://localhost:11434/api/tags")
+            resp = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
             latency_ms = int((time.monotonic() - start) * 1000)
             if resp.status_code == 200:
                 return {"status": "ok", "latency_ms": latency_ms}

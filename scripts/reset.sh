@@ -18,7 +18,7 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 echo -e "${YELLOW}Stopping containers and removing volumes...${NC}"
-docker compose -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.yml down -v
 echo -e "${GREEN}✓ Containers and volumes removed${NC}"
 
 if [ -f ".env.local" ]; then

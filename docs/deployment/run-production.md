@@ -33,7 +33,7 @@ git clone <repo-url>
 cd ProjectLens-AI
 
 # 2. Environment
-cp .env.production.example .env.production
+cp config/.env.production.example .env.production
 # EDIT .env.production with real values (see below)
 
 # 3. Deploy

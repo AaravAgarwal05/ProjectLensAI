@@ -440,10 +440,14 @@ class ProcessingService:
 
                 store_factory = VectorStoreFactory()
                 store_factory.registry.register("chroma", ChromaVectorStore)
+
+                from src.config.settings import get_settings
+
+                _s = get_settings()
                 config = VectorStoreConfiguration(
                     store="chroma",
                     collection_name=f"report_{report_id}",
-                    extra={"host": "localhost", "port": 8001},
+                    extra={"host": _s.CHROMA_HOST, "port": _s.CHROMA_PORT},
                 )
                 engine = IndexingEngine(factory=store_factory, config=config)
                 index_result = await engine.index(embed_result.embeddings)

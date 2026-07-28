@@ -11,11 +11,11 @@ fi
 
 # Copy environment file if not present
 if [ ! -f .env ]; then
-    if [ -f .env.example ]; then
-        cp .env.example .env
-        echo "Created .env from .env.example"
+    if [ -f config/.env.example ]; then
+        cp config/.env.example .env
+        echo "Created .env from config/.env.example"
     else
-        echo "Warning: .env.example not found, skipping"
+        echo "Warning: config/.env.example not found, skipping"
     fi
 fi
 

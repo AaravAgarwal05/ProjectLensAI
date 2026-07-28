@@ -44,7 +44,10 @@ def _get_chroma_client() -> Any:
     if _chroma_client is None:
         import chromadb
 
-        _chroma_client = chromadb.HttpClient(host="localhost", port=8001)
+        from src.config.settings import get_settings
+
+        s = get_settings()
+        _chroma_client = chromadb.HttpClient(host=s.CHROMA_HOST, port=s.CHROMA_PORT)
     return _chroma_client
 
 
@@ -76,7 +79,14 @@ def _build_orchestrator(
     should fall back to a placeholder response).
     """
     try:
-        llm_config = LLMConfiguration(model_name=model_name) if model_name else LLMConfiguration()
+        from src.config.settings import get_settings
+
+        _s = get_settings()
+        llm_config = (
+            LLMConfiguration(model_name=model_name, base_url=_s.OLLAMA_BASE_URL)
+            if model_name
+            else LLMConfiguration(base_url=_s.OLLAMA_BASE_URL)
+        )
         llm_provider = OllamaProvider(config=llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
         citation_engine = CitationEngine()
@@ -112,8 +122,11 @@ def _build_retrieve_chunks() -> (
     Returns ``None`` if ChromaDB is not available.
     """
     try:
-        chroma_host = "localhost"
-        chroma_port = 8001
+        from src.config.settings import get_settings
+
+        _s = get_settings()
+        chroma_host = _s.CHROMA_HOST
+        chroma_port = _s.CHROMA_PORT
         chroma_client = _get_chroma_client()
 
         async def retrieve(query: str, report_ids: list[str], top_k: int) -> list[ContextChunk]:

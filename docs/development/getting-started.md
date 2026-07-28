@@ -19,10 +19,10 @@ For a detailed step-by-step guide, see [Development Run Guide](run-dev.md).
 
 ```bash
 # 1. Environment
-cp .env.local.example .env.local
+cp config/.env.local.example .env.local
 
 # 2. Start infrastructure (PostgreSQL, ChromaDB, Redis)
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml up -d
 
 # 3. Install backend
 cd apps/backend

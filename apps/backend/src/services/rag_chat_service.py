@@ -16,6 +16,7 @@ from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.models import LLMRequest
 from src.ai_core.llm.providers.ollama import OllamaProvider
+from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +39,21 @@ class RAGChatService:
 
     def __init__(
         self,
-        chroma_host: str = "localhost",
-        chroma_port: int = 8001,
+        chroma_host: str | None = None,
+        chroma_port: int | None = None,
         top_k: int = 5,
     ) -> None:
-        self._chroma_host = chroma_host
-        self._chroma_port = chroma_port
+        _settings = get_settings()
+        self._chroma_host = chroma_host or _settings.CHROMA_HOST
+        self._chroma_port = chroma_port or _settings.CHROMA_PORT
         self._top_k = top_k
         self._embedding_provider = OllamaEmbeddingProvider(
             model_name="nomic-embed-text",
-            base_url="http://localhost:11434",
+            base_url=_settings.OLLAMA_BASE_URL,
         )
-        self._llm_provider = OllamaProvider(config=LLMConfiguration())
+        self._llm_provider = OllamaProvider(
+            config=LLMConfiguration(base_url=_settings.OLLAMA_BASE_URL)
+        )
         self._chroma_client: Any | None = None
 
     # ------------------------------------------------------------------
