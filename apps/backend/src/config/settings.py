@@ -47,7 +47,7 @@ class AppSettings(BaseSettings):
     OLLAMA_PORT: int = 11434
 
     @property
-    def OLLAMA_BASE_URL(self) -> str:
+    def ollama_base_url(self) -> str:
         return f"http://{self.OLLAMA_HOST}:{self.OLLAMA_PORT}"
 
     # Logging

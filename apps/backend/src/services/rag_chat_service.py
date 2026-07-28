@@ -49,10 +49,10 @@ class RAGChatService:
         self._top_k = top_k
         self._embedding_provider = OllamaEmbeddingProvider(
             model_name="nomic-embed-text",
-            base_url=_settings.OLLAMA_BASE_URL,
+            base_url=_settings.ollama_base_url,
         )
         self._llm_provider = OllamaProvider(
-            config=LLMConfiguration(base_url=_settings.OLLAMA_BASE_URL)
+            config=LLMConfiguration(base_url=_settings.ollama_base_url)
         )
         self._chroma_client: Any | None = None
 

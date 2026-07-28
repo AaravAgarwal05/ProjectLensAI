@@ -61,7 +61,7 @@ async def _check_ollama() -> dict[str, Any]:
         settings = get_settings()
         async with httpx.AsyncClient(timeout=5) as client:
             start = time.monotonic()
-            resp = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
+            resp = await client.get(f"{settings.ollama_base_url}/api/tags")
             latency_ms = int((time.monotonic() - start) * 1000)
             if resp.status_code == 200:
                 return {"status": "ok", "latency_ms": latency_ms}

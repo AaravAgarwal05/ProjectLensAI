@@ -83,9 +83,9 @@ def _build_orchestrator(
 
         _s = get_settings()
         llm_config = (
-            LLMConfiguration(model_name=model_name, base_url=_s.OLLAMA_BASE_URL)
+            LLMConfiguration(model_name=model_name, base_url=_s.ollama_base_url)
             if model_name
-            else LLMConfiguration(base_url=_s.OLLAMA_BASE_URL)
+            else LLMConfiguration(base_url=_s.ollama_base_url)
         )
         llm_provider = OllamaProvider(config=llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
