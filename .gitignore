@@ -14,6 +14,9 @@ pip-delete-this-directory.txt
 # ── Virtual environments ───────────────────────────────
 .venv/
 venv/
+
+# uv workspace — single lock at root, stale member locks ignored
+apps/backend/uv.lock
 .env/
 env/
 .python-version-default
@@ -130,3 +133,5 @@ tokens/
 .claude/
 .claude-flow/
 
+# ── Testing Data ─────────────────────────────────
+test_data/

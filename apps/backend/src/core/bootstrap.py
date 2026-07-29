@@ -21,6 +21,7 @@ async def bootstrap_app(app: FastAPI) -> None:
         - Logging configuration
         - Database engine initialisation
         - LLM provider registration
+        - ChromaDB client initialisation
         - Startup sanity checks
 
     Args:
@@ -59,6 +60,42 @@ async def bootstrap_app(app: FastAPI) -> None:
     logger.info("Registered LLM provider: fallback")
     # Attach to app state for downstream use
     app.state.llm_registry = _registry
+
+    # ------------------------------------------------------------------
+    # ChromaDB client (singleton, reused across requests)
+    # ------------------------------------------------------------------
+    try:
+        import chromadb
+
+        chroma_client = chromadb.HttpClient(
+            host=settings.CHROMA_HOST,
+            port=settings.CHROMA_PORT,
+        )
+        # Warm the connection with a heartbeat call
+        heartbeat = chroma_client.heartbeat()
+        app.state.chroma_client = chroma_client
+        logger.info("ChromaDB client initialised (heartbeat: %s)", heartbeat)
+    except Exception as exc:
+        logger.warning("ChromaDB initialisation failed: %s. Vector search will be unavailable.", exc)
+        app.state.chroma_client = None
+
+    # ------------------------------------------------------------------
+    # Embedding provider warmup
+    # ------------------------------------------------------------------
+    try:
+        from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
+
+        embedder = OllamaEmbeddingProvider(
+            model_name="nomic-embed-text",
+            base_url=settings.ollama_base_url,
+        )
+        # Probe dimensions and warm model
+        dims = await embedder.embed("warmup")
+        app.state.embedding_provider = embedder
+        logger.info("Embedding provider initialised (dims: %d)", len(dims))
+    except Exception as exc:
+        logger.warning("Embedding provider warmup failed: %s", exc)
+        app.state.embedding_provider = None
 
     logger.info("Startup complete — ready to accept requests")
 

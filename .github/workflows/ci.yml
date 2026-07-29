@@ -58,8 +58,9 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - name: Install dependencies
-        working-directory: apps/backend
-        run: uv sync --extra dev
+        run: |
+          uv sync
+          uv sync --package projectlens-backend --extra dev
       - name: Alembic migration
         working-directory: apps/backend
         run: uv run alembic upgrade head

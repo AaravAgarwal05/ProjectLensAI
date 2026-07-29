@@ -56,6 +56,7 @@ class ChatSession:
     title: str = ""
     report_ids: list[str] = field(default_factory=list)
     mode: str = "single"
+    summary: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     archived: bool = False

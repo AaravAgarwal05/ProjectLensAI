@@ -54,6 +54,7 @@ class RAGChatService:
         self._llm_provider = OllamaProvider(
             config=LLMConfiguration(base_url=_settings.ollama_base_url)
         )
+        self._llm_config = LLMConfiguration(base_url=_settings.ollama_base_url)
         self._chroma_client: Any | None = None
 
     # ------------------------------------------------------------------
@@ -119,8 +120,8 @@ class RAGChatService:
         request = LLMRequest(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=0.3,
-            max_tokens=1024,
+            temperature=self._llm_config.temperature,
+            max_tokens=self._llm_config.max_tokens,
         )
 
         response = await self._llm_provider.generate(request)
@@ -219,7 +220,7 @@ class RAGChatService:
                     {
                         "chunk_id": ids[i],
                         "content": documents[i] if documents and i < len(documents) else "",
-                        "score": 1.0 - distances[i] if distances and i < len(distances) else 0.0,
+                        "score": 1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0,
                         "metadata": metadatas[i] if metadatas and i < len(metadatas) else {},
                         "report_id": rid,
                     }

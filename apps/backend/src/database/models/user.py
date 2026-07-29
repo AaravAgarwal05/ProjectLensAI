@@ -45,6 +45,11 @@ DEFAULT_PREFERENCES = {
     "llm_model": "gemma3:1b",
     "retrieval_strategy": "hybrid",
     "embedding_provider": "ollama",
+    "chunk_size": 1000,
+    "chunk_overlap": 200,
+    "min_chunk_size": 100,
+    "embedding_model": "nomic-embed-text",
+    "top_k": 5,
 }
 
 

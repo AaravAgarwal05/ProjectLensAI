@@ -32,6 +32,7 @@ dependencies = [
     "chromadb>=1.5,<2",
     "projectlens-shared",
     "projectlens-core",
+    "sentence-transformers>=3.4.1",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +73,6 @@ target-version = ["py312"]
 line-length = 100
 
 [tool.uv.sources]
-projectlens-shared = { path = "../../packages/shared", editable = true }
-projectlens-core = { path = "../../packages/core", editable = true }
+projectlens-shared = { workspace = true }
+projectlens-core = { workspace = true }
 

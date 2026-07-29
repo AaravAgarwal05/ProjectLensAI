@@ -10,8 +10,6 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from sentence_transformers import SentenceTransformer
-
 from src.ai_core.embedding.base import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
@@ -41,18 +39,18 @@ class SentenceTransformerProvider(EmbeddingProvider):
         self._batch_size = batch_size
         self._normalize = normalize_embeddings
         self._cache_folder = cache_folder
-        self._model: SentenceTransformer | None = None
+        self._model: Any = None
 
     # ------------------------------------------------------------------
     # Lazy model loading
     # ------------------------------------------------------------------
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self) -> Any:
         """Lazy-loaded SentenceTransformer model."""
         if self._model is None:
             self._load_model()
-        return cast(SentenceTransformer, self._model)
+        return self._model
 
     def _load_model(self) -> None:
         """Load the SentenceTransformer model."""
@@ -69,7 +67,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         )
         loaded = SentenceTransformer(self._model_name, **kwargs)
         self._model = loaded
-        dim = loaded.get_embedding_dimension()  # type: ignore[operator]
+        dim = loaded.get_sentence_embedding_dimension()  # type: ignore[operator]
         logger.info("Model loaded. Dimensions: %d", dim or 0)
 
     # ------------------------------------------------------------------
@@ -78,7 +76,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
 
     @property
     def dimensions(self) -> int:
-        d = self.model.get_embedding_dimension()  # type: ignore[operator]
+        d = self.model.get_sentence_embedding_dimension()
         return d if d is not None else 0
 
     @property

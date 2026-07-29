@@ -25,10 +25,26 @@ from src.ai_core.context.configuration import ContextConfiguration
 from src.ai_core.context.models import ContextChunk
 from src.ai_core.context.pipeline import ContextAssemblyPipeline
 from src.ai_core.llm.base import LLMProvider
-from src.ai_core.llm.models import StreamingChunk
+from src.ai_core.llm.models import LLMRequest, StreamingChunk
 from src.ai_core.llm.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
+
+
+_QUERY_REWRITE_PROMPT = (
+    "Given the conversation history and a follow-up question, "
+    "rewrite the question to be self-contained — a standalone version "
+    "that includes all necessary context from the history.\n\n"
+    "Conversation history:\n{history}\n\n"
+    "Follow-up question: {question}\n\n"
+    "Rewritten question:"
+)
+
+_SUMMARY_PROMPT = (
+    "Summarize the key points, questions, and answers from this conversation "
+    "for continuing the discussion. Be concise but preserve important details "
+    "and document references.\n\n{history}\n\nSummary:"
+)
 
 
 class ChatOrchestrator:
@@ -89,13 +105,21 @@ class ChatOrchestrator:
         # Save user message
         await self._create_user_message(session_id, user_message)
 
+        # Load conversation history (includes the user message just saved)
+        history = await self._load_history(session_id)
+
+        # Query rewriting for multi-turn — make follow-ups self-contained
+        search_query = user_message
+        if len(history) >= 3 and session.summary:
+            rewritten = await self._rewrite_query(user_message, session.summary)
+            if rewritten:
+                logger.debug("Rewrote query: %r -> %r", user_message[:50], rewritten[:50])
+                search_query = rewritten
+
         # Retrieve context chunks
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
-            chunks = await retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
-
-        # Load conversation history
-        history = await self._load_history(session_id)
+            chunks = await retrieve_chunks(search_query, session.report_ids, self._config.retrieval_top_k)
 
         # Determine context strategy from session mode
         strategy = self._mode_to_strategy(session.mode)
@@ -123,8 +147,14 @@ class ChatOrchestrator:
         # Save assistant message
         assistant_msg = await self._create_assistant_message(session_id, response.text, citations)
 
-        # Update session timestamp
-        await self._session_mgr.update_session(session_id)
+        # Update session timestamp + summary
+        all_history = await self._load_history(session_id)
+        if len(all_history) >= 6:  # 3+ turns → generate/refresh summary
+            summary = await self._generate_summary(session_id, all_history)
+            if summary:
+                await self._session_mgr.update_session(session_id, summary=summary)
+        else:
+            await self._session_mgr.update_session(session_id)
 
         return assistant_msg, citations
 
@@ -188,7 +218,18 @@ class ChatOrchestrator:
                 # skipping any code after this loop.
                 response_text = "".join(full_text)
                 await self._create_assistant_message(session_id, response_text, citations)
-                await self._session_mgr.update_session(session_id)
+
+                # Refresh summary if enough history accumulated
+                all_history = await self._load_history(session_id)
+                if len(all_history) >= 6:
+                    summary = await self._generate_summary(session_id, all_history)
+                    if summary:
+                        await self._session_mgr.update_session(session_id, summary=summary)
+                    else:
+                        await self._session_mgr.update_session(session_id)
+                else:
+                    await self._session_mgr.update_session(session_id)
+
                 yield chunk
                 return
             yield chunk
@@ -244,6 +285,54 @@ class ChatOrchestrator:
         )
         return msgs
 
+    # ------------------------------------------------------------------
+    # Query rewriting & summarization
+    # ------------------------------------------------------------------
+
+    async def _rewrite_query(self, question: str, summary: str | None) -> str | None:
+        """Rewrite a follow-up question to be self-contained using conversation summary."""
+        if not summary or not question:
+            return None
+        try:
+            history_text = f"Conversation summary: {summary}"
+            prompt = _QUERY_REWRITE_PROMPT.format(history=history_text, question=question)
+            req = LLMRequest(
+                user_prompt=prompt,
+                temperature=0.1,
+                max_tokens=256,
+            )
+            resp = await self._llm.generate(req)
+            rewritten = resp.text.strip().strip('"\'')
+            return rewritten if rewritten and rewritten != question else None
+        except Exception:
+            logger.debug("Query rewriting failed, using original", exc_info=True)
+            return None
+
+    async def _generate_summary(
+        self,
+        session_id: str,
+        history: list[ChatMessageModel],
+    ) -> str | None:
+        """Generate an LLM-based conversation summary."""
+        try:
+            history_lines = []
+            for msg in history[-10:]:  # last 10 messages
+                role = "User" if msg.role == "user" else "Assistant"
+                history_lines.append(f"{role}: {msg.content[:300]}")
+            history_text = "\n".join(history_lines)
+
+            req = LLMRequest(
+                user_prompt=_SUMMARY_PROMPT.format(history=history_text),
+                temperature=0.2,
+                max_tokens=512,
+            )
+            resp = await self._llm.generate(req)
+            summary = resp.text.strip()
+            return summary if summary else None
+        except Exception:
+            logger.debug("Summary generation failed", exc_info=True)
+            return None
+
     @staticmethod
     def _model_to_session(model: ChatSessionModel) -> ChatSession:
         return ChatSession(
@@ -251,6 +340,7 @@ class ChatOrchestrator:
             title=model.title,
             report_ids=list(model.report_ids) if model.report_ids else [],
             mode=model.mode,
+            summary=model.summary,
             created_at=model.created_at,
             updated_at=model.updated_at,
             archived=model.archived,

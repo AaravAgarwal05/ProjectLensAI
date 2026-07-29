@@ -21,6 +21,7 @@ class ChatSessionModel(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="New Chat")
     mode: Mapped[str] = mapped_column(String(20), nullable=False, default="single")
     report_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )

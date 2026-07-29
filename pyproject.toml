@@ -1,16 +1,8 @@
-[build-system]
-requires = ["hatchling", "hatch-monorepo"]
-build-backend = "hatchling.build"
-
 [project]
 name = "projectlens-ai"
 version = "0.1.0"
 description = "Production-grade document analysis platform"
 requires-python = ">=3.12"
-dependencies = [
-    "aiohttp>=3.9.0",
-    "chromadb>=1.5.0",
-]
 authors = [
     {name = "ProjectLens AI Team", email = "team@projectlens.ai"},
 ]
@@ -26,28 +18,25 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.23.0",
-    "ruff>=0.3.0",
-    "mypy>=1.8.0",
-    "pre-commit>=3.6.0",
-    "hatchling>=1.21.0",
-    "hatch-monorepo>=0.1.0",
-]
+dependencies = ["projectlens-backend"]
 
 [project.urls]
 homepage = "https://projectlens.ai"
 repository = "https://github.com/projectlens-ai/projectlens"
 documentation = "https://docs.projectlens.ai"
 
-[tool.hatch.build.targets.wheel]
-packages = [
-    "packages/core/src",
-    "packages/shared/src",
-]
+# ── uv workspace ─────────────────────────────────────────────────────
+# Root depends on workspace members so `uv sync` installs everything
+# into root .venv. Each member declares its own deps.
+#   uv sync                     → installs everything into root .venv
+#   uv add --package <name> <dep> → adds dep to the member's pyproject
+[tool.uv.workspace]
+members = ["apps/backend", "packages/*"]
+
+[tool.uv.sources]
+projectlens-backend = { workspace = true }
+
+# ── Tooling config ───────────────────────────────────────────────────
 
 [tool.ruff]
 line-length = 100

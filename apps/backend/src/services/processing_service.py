@@ -331,6 +331,7 @@ class ProcessingService:
                 strategy_names.get(chunking_strategy, chunking_strategy),
             )
 
+            from src.ai_core.chunking.configuration import ChunkingConfiguration
             from src.ai_core.chunking.factory import ChunkingFactory
             from src.ai_core.chunking.pipeline import ChunkingPipeline
             from src.ai_core.chunking.registry import ChunkingRegistry
@@ -344,9 +345,20 @@ class ProcessingService:
             registry.register("recursive", RecursiveChunker)
             registry.register("heading_aware", HeadingAwareChunker)
 
+            # Build config overrides from user preferences
+            chunk_config_overrides: dict[str, object] = {}
+            if preferences and isinstance(preferences, dict):
+                for key in ("chunk_size", "chunk_overlap", "min_chunk_size"):
+                    if key in preferences:
+                        chunk_config_overrides[key] = preferences[key]
+
             factory = ChunkingFactory(registry)
             chunk_pipeline = ChunkingPipeline(factory=factory)
-            chunk_result = chunk_pipeline.run(parsed_doc, strategy=chunking_strategy)
+            chunk_result = chunk_pipeline.run(
+                parsed_doc,
+                strategy=chunking_strategy,
+                config=ChunkingConfiguration(**chunk_config_overrides),
+            )
 
             if not chunk_result.successful or not chunk_result.chunks:
                 _log_fail(

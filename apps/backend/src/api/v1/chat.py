@@ -39,7 +39,14 @@ _rag_service: RAGChatService | None = None
 _chroma_client: Any | None = None
 
 
-def _get_chroma_client() -> Any:
+def _get_chroma_client(request: Request | None = None) -> Any:
+    """Get the shared ChromaDB client, preferring app.state singleton."""
+    # Prefer the startup-initialized singleton
+    if request is not None:
+        client = getattr(request.app.state, "chroma_client", None)
+        if client is not None:
+            return client
+
     global _chroma_client  # noqa: PLW0603
     if _chroma_client is None:
         import chromadb
@@ -119,6 +126,9 @@ def _build_retrieve_chunks() -> (
 ):
     """Build an async callable that embeds a query and retrieves ContextChunks from ChromaDB.
 
+    Applies cross-encoder reranking and MMR diversity post-processing
+    when the required models are available.
+
     Returns ``None`` if ChromaDB is not available.
     """
     try:
@@ -129,8 +139,37 @@ def _build_retrieve_chunks() -> (
         chroma_port = _s.CHROMA_PORT
         chroma_client = _get_chroma_client()
 
+        # Lazy-init rerankers at module scope so they're reused across calls
+        _cross_encoder: Any = None
+        _mmr: Any = None
+
+        def _get_cross_encoder() -> Any:
+            nonlocal _cross_encoder
+            if _cross_encoder is None:
+                try:
+                    from src.ai_core.retrieval.reranking.providers.cross_encoder import (
+                        CrossEncoderReranker,
+                    )
+                    _cross_encoder = CrossEncoderReranker()
+                except Exception:
+                    _cross_encoder = False  # sentinel: don't retry
+            return _cross_encoder if _cross_encoder is not False else None
+
+        def _get_mmr() -> Any:
+            nonlocal _mmr
+            if _mmr is None:
+                try:
+                    from src.ai_core.retrieval.reranking.providers.mmr import (
+                        MMRReranker,
+                    )
+                    _mmr = MMRReranker(lambda_=0.7, top_k=5)
+                except Exception:
+                    _mmr = False
+            return _mmr if _mmr is not False else None
+
         async def retrieve(query: str, report_ids: list[str], top_k: int) -> list[ContextChunk]:
             """Embed *query*, search each report collection, return ContextChunks."""
+            from src.ai_core.retrieval.models import RetrievedChunk, SearchQuery
             from src.services.rag_chat_service import RAGChatService
 
             rag = RAGChatService(chroma_host=chroma_host, chroma_port=chroma_port, top_k=top_k)
@@ -156,7 +195,7 @@ def _build_retrieve_chunks() -> (
                 metadatas = results.get("metadatas", [[]])[0]
 
                 for i in range(len(ids)):
-                    score = 1.0 - distances[i] if distances and i < len(distances) else 0.0
+                    score = 1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0
                     meta = metadatas[i] if metadatas and i < len(metadatas) else {}
                     all_chunks.append(
                         ContextChunk(
@@ -170,8 +209,58 @@ def _build_retrieve_chunks() -> (
                         )
                     )
 
-            all_chunks.sort(key=lambda c: c.score, reverse=True)
-            return all_chunks
+            if not all_chunks:
+                return []
+
+            # Convert to RetrievedChunk for reranking
+            retrieved = [
+                RetrievedChunk(
+                    chunk_id=c.chunk_id,
+                    content=c.content,
+                    score=c.score,
+                    metadata={"source_id": c.source_id, "page_number": c.page_number, "section_name": c.section_name},
+                    document_id=c.source_id,
+                )
+                for c in all_chunks
+            ]
+
+            search_query = SearchQuery(text=query, top_k=top_k)
+
+            # Cross-encoder reranking
+            ce = _get_cross_encoder()
+            if ce is not None:
+                try:
+                    retrieved = await ce.rerank(search_query, retrieved)
+                except Exception:
+                    logger.debug("Cross-encoder reranking skipped", exc_info=True)
+
+            # MMR diversity
+            mmr = _get_mmr()
+            if mmr is not None:
+                try:
+                    retrieved = await mmr.rerank(search_query, retrieved)
+                except Exception:
+                    logger.debug("MMR reranking skipped", exc_info=True)
+
+            # Convert back to ContextChunk
+            chunk_map = {c.chunk_id: c for c in all_chunks}
+            reordered = []
+            for r in retrieved:
+                original = chunk_map.get(r.chunk_id)
+                if original is not None:
+                    reordered.append(
+                        ContextChunk(
+                            chunk_id=r.chunk_id,
+                            content=r.content,
+                            score=r.score,
+                            source_id=r.document_id or original.source_id,
+                            source_title=original.source_title,
+                            page_number=original.page_number,
+                            section_name=original.section_name,
+                        )
+                    )
+
+            return reordered
 
         return retrieve
     except Exception:

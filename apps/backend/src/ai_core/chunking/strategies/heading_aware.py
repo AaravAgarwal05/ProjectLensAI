@@ -128,6 +128,10 @@ class HeadingAwareChunker(ChunkingStrategy):
             chunks=chunks,
         )
 
+        # 3. Apply overlap between adjacent chunks if configured
+        if cfg.chunk_overlap > 0 and len(chunks) > 1:
+            self._apply_overlap(chunks, cfg.chunk_overlap)
+
         result = ChunkingResult(chunks=chunks, warnings=warnings)
         sizes = [len(c.text) for c in chunks]
         token_counts = [c.token_count for c in chunks]
@@ -280,6 +284,27 @@ class HeadingAwareChunker(ChunkingStrategy):
 
             heading = section_path[-1] if section_path else None
             section = " > ".join(section_path) if section_path else None
+
+            # Merge tiny sections into the previous chunk.
+            # Threshold ≤30 chars catches fragmented headers/captions (DNA~2
+            # had ~5-char fragments) but preserves legitimate short sections.
+            if len(section_text) <= 30 and chunks:
+                prev = chunks[-1]
+                merged_text = prev.text + "\n\n" + section_text
+                merged = prev.model_copy(update={
+                    "text": merged_text,
+                    "end_offset": node.end_offset,
+                    "token_count": _estimate_tokens(merged_text),
+                    "page_number": self._estimate_page(document, node.end_offset),
+                })
+                chunks[-1] = merged
+                logger.debug(
+                    "Merged %d-char section <%s> into previous chunk",
+                    len(section_text),
+                    heading,
+                )
+                section_path.pop()
+                return
 
             if len(section_text) <= config.chunk_size:
                 # Single chunk for this section
@@ -518,3 +543,23 @@ class HeadingAwareChunker(ChunkingStrategy):
             if offset < cumulative:
                 return page.number  # type: ignore[no-any-return]
         return document.pages[-1].number  # type: ignore[no-any-return]
+
+    @staticmethod
+    def _apply_overlap(chunks: list[Chunk], overlap_chars: int) -> None:
+        """Slide overlapping content between adjacent heading-aligned chunks.
+
+        For each adjacent pair, append the first *overlap_chars* of the
+        next chunk's text to the end of the current chunk, maintaining
+        continuity across section boundaries.
+        """
+        for i in range(len(chunks) - 1):
+            current = chunks[i]
+            nxt = chunks[i + 1]
+            take = min(overlap_chars, len(nxt.text))
+            if take <= 0:
+                continue
+            overlapped_text = current.text + "\n\n" + nxt.text[:take]
+            chunks[i] = current.model_copy(update={
+                "text": overlapped_text,
+                "token_count": _estimate_tokens(overlapped_text),
+            })

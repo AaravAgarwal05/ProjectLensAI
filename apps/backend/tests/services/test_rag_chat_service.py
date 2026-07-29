@@ -101,7 +101,7 @@ class TestRAGChatServiceAnswer:
         assert len(citations) == 2
         assert citations[0]["report_id"] == "r1"
         assert citations[0]["chunk_id"] == "c1"
-        assert citations[0]["score"] == pytest.approx(0.9)
+        assert citations[0]["score"] == pytest.approx(1.0 / 1.1)  # 1/(1 + 0.1) = 0.909
 
     async def test_answer_no_chunks(self):
         """When no chunks retrieved, return fallback message."""

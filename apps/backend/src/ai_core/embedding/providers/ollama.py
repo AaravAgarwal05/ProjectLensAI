@@ -98,8 +98,29 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         except Exception:
             return False
 
+    @staticmethod
+    def _l2_normalize(vector: list[float]) -> list[float]:
+        """L2-normalize *vector* in-place and return it.
+
+        nomic-embed-text and most Ollama embedding models output
+        unnormalized vectors. Normalising client-side makes cosine
+        similarity equivalent to L2 distance, producing interpretable
+        scores in [0, 1].
+        """
+        norm_sq = 0.0
+        for v in vector:
+            norm_sq += v * v
+        norm = norm_sq ** 0.5
+        if norm > 1e-12:
+            for i in range(len(vector)):
+                vector[i] /= norm
+        return vector
+
     async def embed(self, text: str) -> list[float]:
-        """Embed a single text via the Ollama API."""
+        """Embed a single text via the Ollama API.
+
+        Returns an L2-normalized vector.
+        """
         payload = {
             "model": self._model_name,
             "prompt": text,
@@ -115,7 +136,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             vector: list[float] = cast(list[float], data.get("embedding", []))
             if self._dimensions is None and vector:
                 self._dimensions = len(vector)
-            return vector
+            return self._l2_normalize(vector)
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts via the Ollama API.
@@ -152,7 +173,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             raw_embeddings = cast(list[list[float]], data.get("embeddings", []))
             if self._dimensions is None and raw_embeddings:
                 self._dimensions = len(raw_embeddings[0])
-            return raw_embeddings
+            return [self._l2_normalize(v) for v in raw_embeddings]
 
     async def _probe_dimensions(self) -> int:
         """Probe embedding dimensions with a single API call."""
