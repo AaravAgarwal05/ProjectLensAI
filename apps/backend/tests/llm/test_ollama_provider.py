@@ -266,8 +266,8 @@ class TestOllamaProviderConfig:
         assert prov.provider_name == "ollama"
 
     def test_default_model(self):
-        prov = OllamaProvider()
-        assert prov._config.model_name == "llama3.2:1b"
+        prov = OllamaProvider(config=make_config())
+        assert prov._config.model_name == "test-model:latest"
 
     def test_custom_config(self):
         config = make_config(model_name="custom:latest")

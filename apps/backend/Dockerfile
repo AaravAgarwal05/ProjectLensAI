@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy dependency files first for layer caching
+COPY pyproject.toml .
 COPY apps/backend/pyproject.toml apps/backend/
 COPY packages/shared/pyproject.toml packages/shared/
 COPY packages/core/pyproject.toml packages/core/

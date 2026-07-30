@@ -24,6 +24,7 @@ from src.ai_core.context.pipeline import ContextAssemblyPipeline
 from src.ai_core.context.strategies.single_document import SingleDocumentStrategy
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.prompt_builder import PromptBuilder
+from src.ai_core.llm.providers.google import GoogleProvider
 from src.ai_core.llm.providers.ollama import OllamaProvider
 from src.api.dependencies import get_current_user, get_db
 from src.api.rate_limiter import limiter
@@ -89,12 +90,17 @@ def _build_orchestrator(
         from src.config.settings import get_settings
 
         _s = get_settings()
-        llm_config = (
-            LLMConfiguration(model_name=model_name, base_url=_s.ollama_base_url)
-            if model_name
-            else LLMConfiguration(base_url=_s.ollama_base_url)
-        )
-        llm_provider = OllamaProvider(config=llm_config)
+        llm_config = LLMConfiguration()
+        if llm_config.provider == "ollama":
+            llm_config = llm_config.merge({"base_url": _s.ollama_base_url, "model_name": "llama3.2:1b"})
+        if model_name:
+            llm_config = llm_config.merge({"model_name": model_name})
+
+        # Instantiate the right provider based on config
+        if llm_config.provider == "google":
+            llm_provider = GoogleProvider(config=llm_config)
+        else:
+            llm_provider = OllamaProvider(config=llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
         citation_engine = CitationEngine()
         validation_engine = ChatValidationEngine()
@@ -162,19 +168,23 @@ def _build_retrieve_chunks() -> (
                     from src.ai_core.retrieval.reranking.providers.mmr import (
                         MMRReranker,
                     )
-                    _mmr = MMRReranker(lambda_=0.7, top_k=5)
+                    _mmr = MMRReranker(lambda_=0.4, top_k=4)
                 except Exception:
                     _mmr = False
             return _mmr if _mmr is not False else None
 
         async def retrieve(query: str, report_ids: list[str], top_k: int) -> list[ContextChunk]:
             """Embed *query*, search each report collection, return ContextChunks."""
+            import time
+
             from src.ai_core.retrieval.models import RetrievedChunk, SearchQuery
             from src.services.rag_chat_service import RAGChatService
-
+            _t_embed = time.monotonic()
             rag = RAGChatService(chroma_host=chroma_host, chroma_port=chroma_port, top_k=top_k)
             query_vec = await rag._embed_with_cache(query)  # noqa: SLF001
+            embed_ms = (time.monotonic() - _t_embed) * 1000
 
+            _t_query = time.monotonic()
             all_chunks: list[ContextChunk] = []
             for rid in report_ids:
                 try:
@@ -208,6 +218,55 @@ def _build_retrieve_chunks() -> (
                             section_name=meta.get("section_name", "") or "",
                         )
                     )
+            query_ms = (time.monotonic() - _t_query) * 1000
+
+            # ── BM25 keyword leg — catch exact-match hits vector search may miss ──
+            from src.ai_core.retrieval.providers.hybrid import _BM25Okapi
+
+            bm25_total_added = 0
+            for rid in report_ids:
+                try:
+                    bm25_col = chroma_client.get_collection(name=f"report_{rid}")
+                except Exception:
+                    continue
+                try:
+                    all_data = bm25_col.get()
+                    bm25_ids: list[str] = all_data.get("ids", [])
+                    bm25_docs: list[str] = all_data.get("documents", [])
+                    bm25_metas: list[dict] = all_data.get("metadatas", [])
+                    if not bm25_ids:
+                        continue
+                    bm25 = _BM25Okapi()
+                    bm25.build(bm25_docs)
+                    bm25_scores = bm25.score_all(query)
+                    existing = {c.chunk_id for c in all_chunks}
+                    ranked = sorted(
+                        zip(bm25_ids, bm25_scores, bm25_docs, bm25_metas or [{}] * len(bm25_ids), strict=False),
+                        key=lambda x: -x[1],
+                    )
+                    for chunk_id, _bm25_score, doc_text, meta in ranked:
+                        if chunk_id not in existing:
+                            all_chunks.append(
+                                ContextChunk(
+                                    chunk_id=chunk_id,
+                                    content=doc_text or "",
+                                    score=0.0,  # will be re-ranked by cross-encoder
+                                    source_id=rid,
+                                    source_title=meta.get("title", "") or "",
+                                    page_number=meta.get("page_number"),
+                                    section_name=meta.get("section_name", "") or "",
+                                )
+                            )
+                            bm25_total_added += 1
+                            if bm25_total_added >= 5:  # ponytail: per-collection limit to cap CE work
+                                break
+                    if bm25_total_added >= 5:
+                        break
+                except Exception:
+                    logger.debug("BM25 search failed for report %s", rid, exc_info=True)
+                    continue
+            # ponytail: collection.get() fetches all docs; ok for small collections (<5K chunks).
+            # If collections grow, swap to batched get() + persisted BM25 index per report.
 
             if not all_chunks:
                 return []
@@ -227,20 +286,30 @@ def _build_retrieve_chunks() -> (
             search_query = SearchQuery(text=query, top_k=top_k)
 
             # Cross-encoder reranking
+            _t_ce = time.monotonic()
             ce = _get_cross_encoder()
             if ce is not None:
                 try:
                     retrieved = await ce.rerank(search_query, retrieved)
                 except Exception:
                     logger.debug("Cross-encoder reranking skipped", exc_info=True)
+            ce_ms = (time.monotonic() - _t_ce) * 1000
 
             # MMR diversity
+            _t_mmr = time.monotonic()
             mmr = _get_mmr()
             if mmr is not None:
                 try:
                     retrieved = await mmr.rerank(search_query, retrieved)
                 except Exception:
                     logger.debug("MMR reranking skipped", exc_info=True)
+            mmr_ms = (time.monotonic() - _t_mmr) * 1000
+
+            logger.info(
+                "[RETRIEVE_TRACE] query=%.50s embed=%dms query=%dms bm25=%d ce=%dms mmr=%dms total=%d chunks=%d",
+                query, int(embed_ms), int(query_ms), int(bm25_total_added), int(ce_ms), int(mmr_ms),
+                int(embed_ms + query_ms + ce_ms + mmr_ms), len(all_chunks),
+            )
 
             # Convert back to ContextChunk
             chunk_map = {c.chunk_id: c for c in all_chunks}
@@ -282,6 +351,7 @@ class CitationRefOut(BaseModel):
     section_name: str = ""
     chunk_id: str = ""
     score: float = 0.0
+    content: str = ""
 
 
 class MessageOut(BaseModel):
@@ -553,7 +623,11 @@ async def send_message(
 
     if report_ids:
         user_prefs = user.preferences or {}
-        user_model = user_prefs.get("llm_model") if isinstance(user_prefs, dict) else None
+        user_model: str | None = None
+        if isinstance(user_prefs, dict):
+            user_provider = user_prefs.get("llm_provider")
+            if user_provider and user_provider == LLMConfiguration().provider:
+                user_model = user_prefs.get("llm_model")
         orchestrator = _build_orchestrator(db, mode=body.mode, model_name=user_model)
         retrieve_chunks = _build_retrieve_chunks()
         use_orchestrator = orchestrator is not None and retrieve_chunks is not None
@@ -582,6 +656,7 @@ async def send_message(
                         section_name=c.section_name,
                         chunk_id=c.chunk_id,
                         score=c.score,
+                        content=c.content,
                     )
                     for c in citation_refs
                 ]
@@ -707,7 +782,10 @@ async def send_message_stream(
             report_ids=body.report_ids or [],
             db=db,
             mode=body.mode,
-            model_name=user.preferences.get("llm_model") if isinstance(user.preferences, dict) else None,
+            model_name=user.preferences.get("llm_model") if (
+                isinstance(user.preferences, dict)
+                and user.preferences.get("llm_provider") == LLMConfiguration().provider
+            ) else None,
         ),
         media_type="text/event-stream",
         headers={

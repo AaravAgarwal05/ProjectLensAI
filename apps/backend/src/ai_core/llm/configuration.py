@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -10,16 +11,16 @@ from typing import Any
 class LLMConfiguration:
     """Configuration for the LLM engine."""
 
-    provider: str = "ollama"
-    model_name: str = "llama3.2:1b"
+    provider: str = os.getenv("LLM_PROVIDER", "google")
+    model_name: str = "gemini-2.5-flash"
     embedding_model: str = "nomic-embed-text"
 
     temperature: float = 0.3
     top_p: float = 0.85
     max_tokens: int = 4096
-    context_window: int = 262144  # qwen3.5:4b actual capacity
-    timeout: float = 120.0
-    base_url: str = "http://localhost:11434"
+    context_window: int = 1048576  # Gemini 2.5 Flash: 1M context
+    timeout: float = 30.0
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta"
 
     max_retries: int = 2
     retry_delay: float = 1.0
@@ -38,7 +39,7 @@ class LLMConfiguration:
         "If the context has no useful information, say the context doesn't cover the question."
     )
 
-    fallback_models: list[str] = field(default_factory=lambda: ["gemma3:1b"])
+    fallback_models: list[str] = field(default_factory=lambda: ["llama3.2:1b"])
 
     def merge(self, params: dict[str, Any]) -> LLMConfiguration:
         """Return a new config with overrides from *params*."""

@@ -20,7 +20,7 @@ class ChatConfiguration:
     max_message_length: int = 10000
     max_citations_per_response: int = 10
 
-    retrieval_top_k: int = 10
+    retrieval_top_k: int = 25
     retrieval_min_score: float = 0.0
 
     def merge(self, params: dict[str, Any]) -> ChatConfiguration:

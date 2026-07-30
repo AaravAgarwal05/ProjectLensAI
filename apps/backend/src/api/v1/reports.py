@@ -5,6 +5,7 @@ handles HTTP concerns (parsing, status codes, error formatting).
 """
 
 import logging
+from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -14,9 +15,11 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db
@@ -350,3 +353,97 @@ async def list_versions(
             detail=f"Report {report_id} not found",
         )
     return [VersionResponse.model_validate(v) for v in report.versions]
+
+
+# ---------------------------------------------------------------------------
+# Search / retrieval (eval-facing)
+# ---------------------------------------------------------------------------
+
+
+class SearchRequest(BaseModel):
+    """Search a report's indexed chunks."""
+
+    query: str
+    top_k: int = 25
+
+
+class SearchResultChunk(BaseModel):
+    """A single chunk returned from search."""
+
+    chunk_id: str
+    content: str
+    score: float
+    section_name: str = ""
+    page_number: int | None = None
+
+
+class SearchResponse(BaseModel):
+    """Ranked search results."""
+
+    chunks: list[SearchResultChunk]
+    total: int = 0
+
+
+def _get_chroma_client(request: Request) -> Any | None:
+    """Get the shared ChromaDB client from app state."""
+    client = getattr(request.app.state, "chroma_client", None)
+    return client
+
+
+@router.post("/{report_id}/search", response_model=SearchResponse)
+async def search_report_chunks(
+    report_id: str,
+    body: SearchRequest,
+    request: Request,
+    settings: AppSettings = Depends(get_settings),
+) -> SearchResponse:
+    """Search a report's indexed chunks by embedding similarity.
+
+    Returns the raw ranked list of chunks (no reranking) for evaluation.
+    """
+    client = _get_chroma_client(request)
+    if client is None:
+        raise HTTPException(status_code=503, detail="ChromaDB not available")
+
+    try:
+        collection = client.get_collection(name=f"report_{report_id}")
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail=f"ChromaDB collection for report {report_id} not found",
+        )
+
+    from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
+
+    embedder = OllamaEmbeddingProvider(
+        model_name="nomic-embed-text",
+        base_url=settings.ollama_base_url,
+    )
+    query_vec = await embedder.embed(body.query)
+
+    results = collection.query(
+        query_embeddings=[query_vec],
+        n_results=body.top_k,
+        include=["metadatas", "distances", "documents"],
+    )
+
+    ids = results.get("ids", [[]])[0]
+    distances = results.get("distances", [[]])[0]
+    documents = results.get("documents", [[]])[0]
+    metadatas = results.get("metadatas", [[]])[0]
+
+    chunks: list[SearchResultChunk] = []
+    for i in range(len(ids)):
+        score = 1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0
+        meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+        chunks.append(
+            SearchResultChunk(
+                chunk_id=ids[i],
+                content=documents[i] if documents and i < len(documents) else "",
+                score=score,
+                section_name=meta.get("section_name", "") or "",
+                page_number=meta.get("page_number"),
+            )
+        )
+
+    return SearchResponse(chunks=chunks, total=len(chunks))

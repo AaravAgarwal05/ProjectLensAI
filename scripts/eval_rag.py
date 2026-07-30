@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import json
+import logging
 import math
 import os
+import re
 import statistics
 import sys
 import time
@@ -29,6 +32,8 @@ import httpx
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 DEFAULT_BASE_URL = "http://localhost:8000"
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "llama3.2:1b"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_DATA_DIR = PROJECT_ROOT / "test_data" / "rag_eval"
 TEST_DATA_DIR = PROJECT_ROOT / "test_data"
@@ -37,54 +42,125 @@ TEST_DATA_DIR = PROJECT_ROOT / "test_data"
 # ── Scoring helpers ────────────────────────────────────────────────────────────
 
 
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(x * x for x in b))
-    return dot / (na * nb + 1e-12)
+async def _llm_judge(
+    system_prompt: str,
+    user_prompt: str,
+    client: httpx.AsyncClient,
+) -> float:
+    """Call Ollama with a judge prompt, return YES=1.0 / NO=0.0.
 
-
-def _estimate_faithfulness(answer: str, chunks: list[dict[str, Any]]) -> float:
-    """Estimate faithfulness as the fraction of answer claims supported by chunks.
-
-    Uses simple n-gram overlap as a proxy.  In production this should use
-    an LLM judge or dedicated faithfulness model (e.g. TrueTeacher).
+    Handles single-number output too (for other judge tasks).
     """
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": False,
+        "options": {"temperature": 0.0},
+    }
+    try:
+        resp = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=30.0)
+        if resp.status_code != 200:
+            logger = logging.getLogger(__name__)
+            logger.warning("Ollama judge returned %d: %s", resp.status_code, resp.text[:200])
+            return 0.0
+        body = resp.json()
+        content = body.get("message", {}).get("content", "").strip().upper()
+        # Binary YES/NO
+        if content.startswith("YES"):
+            return 1.0
+        if content.startswith("NO"):
+            return 0.0
+        # Numeric score fallback
+        match = re.search(r"([01]\.?\d*)", content)
+        score = float(match.group(1)) if match else 0.0
+        return max(0.0, min(1.0, score))
+    except Exception as exc:
+        logger = logging.getLogger(__name__)
+        logger.warning("Ollama judge failed: %s", exc)
+        return 0.0
+
+
+async def _llm_faithfulness(
+    answer: str,
+    chunks: list[dict],
+    client: httpx.AsyncClient,
+) -> float:
+    """Judge answer faithfulness via LLM (YES/NO → 1.0/0.0)."""
     if not chunks:
         return 0.0
-    chunk_text = " ".join(c.get("content", "") for c in chunks).lower()
-    # Count significant words (not stopwords) from answer that appear in chunks
-    stopwords = {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been",
-        "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "could", "should", "may", "might", "shall", "can",
-        "to", "of", "in", "for", "on", "with", "at", "by", "from",
-        "as", "into", "through", "during", "before", "after", "above",
-        "below", "between", "out", "off", "over", "under", "again",
-        "further", "then", "once", "here", "there", "when", "where",
-        "why", "how", "all", "each", "every", "both", "few", "more",
-        "most", "other", "some", "such", "no", "nor", "not", "only",
-        "own", "same", "so", "than", "too", "very", "and", "but", "or",
-        "if", "because", "about", "up", "it", "its", "that", "this",
-        "what", "which", "who", "whom", "i", "you", "he", "she", "we",
-        "they", "me", "him", "her", "us", "them", "my", "your", "his",
-        "my", "our", "their",
+    chunk_text = "\n".join(
+        f"[{i + 1}] {c.get('content', '')[:600]}"
+        for i, c in enumerate(chunks[:3])
+    )
+    system = (
+        "You are a faithfulness evaluator. Answer only YES or NO. "
+        "YES = every claim in the answer is supported by the excerpts. "
+        "NO = any claim is not supported or contradicts the excerpts."
+    )
+    user = f"Excerpts:\n{chunk_text}\n\nAnswer:\n{answer}\n\nIs every claim in the answer supported by the excerpts? Answer YES or NO:"
+    return await _llm_judge(system, user, client)
+
+
+async def _llm_answer_relevance(
+    answer: str,
+    query: str,
+    client: httpx.AsyncClient,
+) -> float:
+    """Judge answer relevance via LLM (YES/NO → 1.0/0.0)."""
+    system = (
+        "You are a relevance evaluator. Answer only YES or NO. "
+        "YES = the answer meaningfully addresses the question. "
+        "NO = the answer is irrelevant or evades the question."
+    )
+    user = f"Question: {query}\n\nAnswer: {answer}\n\nDoes the answer meaningfully address the question? Answer YES or NO:"
+    return await _llm_judge(system, user, client)
+
+
+@functools.lru_cache(maxsize=128)
+def _compute_retrieval_metrics_from_citations(
+    retrieved_chunk_ids: tuple[str, ...],
+    cited_chunk_ids: tuple[str, ...],
+    k: int = 10,
+) -> dict[str, float]:
+    """Compute Recall@K, MRR@K, nDCG@K using cited chunks as relevance signal.
+
+    A chunk is "relevant" if it was actually cited by the LLM.
+    Uses lru_cache so repeated queries with the same data don't re-compute.
+    """
+    relevant = {cid for cid in cited_chunk_ids}
+    if not relevant:
+        return {f"recall_at_{k}": 0.0, f"mrr_at_{k}": 0.0, f"ndcg_at_{k}": 0.0}
+
+    # Binary relevance grades: 1 if cited, 0 otherwise
+    grades = [1.0 if cid in relevant else 0.0 for cid in retrieved_chunk_ids]
+    top_k_grades = grades[:k]
+
+    # Recall@K
+    total_relevant = len(relevant)
+    found = sum(top_k_grades)
+    recall = found / total_relevant if total_relevant > 0 else 0.0
+
+    # MRR@K - reciprocal rank of first relevant
+    mrr = 0.0
+    for i, g in enumerate(top_k_grades):
+        if g > 0:
+            mrr = 1.0 / (i + 1)
+            break
+
+    # nDCG@K - discounted cumulative gain
+    dcg = sum(g / math.log2(i + 2) for i, g in enumerate(top_k_grades))
+    ideal = sorted(grades, reverse=True)[:k]
+    idcg = sum(g / math.log2(i + 2) for i, g in enumerate(ideal))
+    ndcg = dcg / idcg if idcg > 0 else 0.0
+
+    return {
+        f"recall_at_{k}": round(recall, 3),
+        f"mrr_at_{k}": round(mrr, 3),
+        f"ndcg_at_{k}": round(ndcg, 3),
     }
-    answer_words = [w.lower().strip(".,!?;:'\"") for w in answer.split()]
-    answer_words = [w for w in answer_words if len(w) > 2 and w not in stopwords]
-    if not answer_words:
-        return 1.0
-    supported = sum(1 for w in answer_words if w in chunk_text)
-    return supported / len(answer_words)
-
-
-def _answer_relevance(answer: str, expected_topics: list[str]) -> float:
-    """Score answer relevance by topic overlap."""
-    if not expected_topics:
-        return 1.0
-    answer_lower = answer.lower()
-    hits = sum(1 for topic in expected_topics if topic.lower() in answer_lower)
-    return hits / len(expected_topics)
 
 
 def _citation_precision(citations: list[dict[str, Any]]) -> float:
@@ -221,7 +297,7 @@ async def evaluate(
     # Upload phase
     upload_ids: dict[str, str] = {}  # filename -> report_id
     actual_report_ids: list[str] = []
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         if upload:
             print(f"\n{'─'*60}")
             print("Upload Phase")
@@ -266,7 +342,11 @@ async def evaluate(
         print("Evaluation Phase")
         print(f"{'─'*60}")
 
+        # Separate client for Ollama (longer timeout for LLM judge)
+        ollama_client = httpx.AsyncClient(timeout=60.0)
+
         all_results: list[dict[str, Any]] = []
+        all_retrieval_metrics: list[dict[str, float]] = []
         for ds in datasets:
             rid = ds.get("_report_id")
             if not rid:
@@ -282,21 +362,60 @@ async def evaluate(
                 if "error" in result:
                     print(f"    ✘ {q['query'][:50]}: {result['error']}")
                 else:
-                    # Score
-                    faith = _estimate_faithfulness(result.get("answer", ""), result.get("citations", []))
-                    relevance = _answer_relevance(result.get("answer", ""), q["expected_topics"])
-                    citation_prec = _citation_precision(result.get("citations", []))
+                    # LLM-based scoring
+                    ans = result.get("answer", "")
+                    citations = result.get("citations", [])
+
+                    faith = await _llm_faithfulness(ans, citations, ollama_client)
+                    relevance = await _llm_answer_relevance(ans, q["query"], ollama_client)
+                    citation_prec = _citation_precision(citations)
 
                     result["faithfulness"] = round(faith, 3)
                     result["relevance"] = round(relevance, 3)
                     result["citation_precision"] = round(citation_prec, 3)
 
+                    # Retrieval metrics: search for ranked chunks + citation-based relevance
+                    try:
+                        search_url = f"{base_url}/api/v1/reports/{rid}/search"
+                        search_headers = {"Authorization": f"Bearer {token}"}
+                        search_resp = await client.post(
+                            search_url,
+                            headers=search_headers,
+                            json={"query": q["query"], "top_k": 25},
+                        )
+                        if search_resp.status_code == 200:
+                            search_body = search_resp.json()
+                            search_chunks = search_body.get("chunks", [])
+                            result["retrieved_chunks"] = len(search_chunks)
+
+                            if search_chunks and citations:
+                                retrieved_ids = tuple(c["chunk_id"] for c in search_chunks)
+                                cited_ids = tuple(c.get("chunk_id", "") for c in citations)
+
+                                rm5 = _compute_retrieval_metrics_from_citations(retrieved_ids, cited_ids, k=5)
+                                rm10 = _compute_retrieval_metrics_from_citations(retrieved_ids, cited_ids, k=10)
+                                result["retrieval_metrics"] = {**rm5, **rm10}
+                                all_retrieval_metrics.append(result["retrieval_metrics"])
+                                result["num_relevant_chunks"] = len({c.get("chunk_id") for c in citations})
+                            else:
+                                result["num_relevant_chunks"] = 0
+                        else:
+                            result["retrieved_chunks"] = 0
+                    except Exception as exc:
+                        logger = logging.getLogger(__name__)
+                        logger.warning("Search/retrieval metrics failed for %s: %s", q["query"][:40], exc)
+                        result["retrieved_chunks"] = 0
+
                     print(f"    {q['query'][:60]:60s} "
                           f"faith={faith:.2f} rel={relevance:.2f} "
                           f"cite={citation_prec:.2f} "
+                          f"chunks={result.get('retrieved_chunks', 0):2d} "
                           f"{result['latency_ms']:.0f}ms")
 
                 all_results.append(result)
+
+        # Cleanup Ollama client
+        await ollama_client.aclose()
 
         # Aggregate report
         print(f"\n{'='*60}")
@@ -320,17 +439,46 @@ async def evaluate(
         p95_lat = sorted(latencies)[int(len(latencies) * 0.95)]
         overall = (avg_faith + avg_rel + avg_cite) / 3 * 10
 
+        # Aggregate retrieval metrics
+        if all_retrieval_metrics:
+            avg_recall5 = statistics.mean(m.get("recall_at_5", 0) for m in all_retrieval_metrics)
+            avg_recall10 = statistics.mean(m.get("recall_at_10", 0) for m in all_retrieval_metrics)
+            avg_mrr5 = statistics.mean(m.get("mrr_at_5", 0) for m in all_retrieval_metrics)
+            avg_mrr10 = statistics.mean(m.get("mrr_at_10", 0) for m in all_retrieval_metrics)
+            avg_ndcg5 = statistics.mean(m.get("ndcg_at_5", 0) for m in all_retrieval_metrics)
+            avg_ndcg10 = statistics.mean(m.get("ndcg_at_10", 0) for m in all_retrieval_metrics)
+            avg_chunks = statistics.mean(
+                r.get("retrieved_chunks", 0) for r in completed
+            )
+            avg_relevant = statistics.mean(
+                r.get("num_relevant_chunks", 0) for r in completed if "num_relevant_chunks" in r
+            )
+        else:
+            avg_recall5 = avg_recall10 = avg_mrr5 = avg_mrr10 = avg_ndcg5 = avg_ndcg10 = 0.0
+            avg_chunks = avg_relevant = 0.0
+
         print(f"""
   ┌─────────────────────────────────────────────────┐
   │               EVALUATION SCORECARD                │
   ├────────────────────────────────┬────────────────┤
-  │  Metric                        │  Score (0-10)  │
+  │  Answer Quality                │  Score (0-10)  │
   ├────────────────────────────────┼────────────────┤
   │  Faithfulness                  │     {avg_faith*10:.1f}           │
   │  Answer Relevance              │     {avg_rel*10:.1f}           │
   │  Citation Precision            │     {avg_cite*10:.1f}           │
   ├────────────────────────────────┼────────────────┤
-  │  OVERALL                       │     {overall:.1f}           │
+  │  OVERALL (Quality)             │     {overall:.1f}           │
+  ├────────────────────────────────┴────────────────┤
+  │  Retrieval Metrics (citation-based relevance)        │
+  ├────────────────────────────────┬────────────────┤
+  │  Recall@5                      │     {avg_recall5*10:.1f}           │
+  │  Recall@10                     │     {avg_recall10*10:.1f}           │
+  │  MRR@5                         │     {avg_mrr5*10:.1f}           │
+  │  nDCG@5                        │     {avg_ndcg5*10:.1f}           │
+  │  nDCG@10                       │     {avg_ndcg10*10:.1f}           │
+  ├────────────────────────────────┼────────────────┤
+  │  Avg chunks retrieved          │     {avg_chunks:5.1f}           │
+  │  Avg cited chunks              │     {avg_relevant:5.1f}           │
   └────────────────────────────────┴────────────────┘
 
   Queries: {len(completed)}/{len(all_results)} completed
@@ -339,16 +487,31 @@ async def evaluate(
 
         # Save detailed results
         out_path = Path.cwd() / "rag_eval_results.json"
+        dump = {
+            "overall": round(overall, 1),
+            "faithfulness_avg": round(avg_faith, 3),
+            "relevance_avg": round(avg_rel, 3),
+            "citation_precision_avg": round(avg_cite, 3),
+            "latency_p50_ms": round(p50_lat, 0),
+            "latency_p95_ms": round(p95_lat, 0),
+            "retrieval_metrics": {
+                "recall_at_5": round(avg_recall5, 3),
+                "recall_at_10": round(avg_recall10, 3),
+                "mrr_at_5": round(avg_mrr5, 3),
+                "ndcg_at_5": round(avg_ndcg5, 3),
+                "ndcg_at_10": round(avg_ndcg10, 3),
+                "avg_chunks_retrieved": round(avg_chunks, 1),
+                "avg_cited_chunks": round(avg_relevant, 1),
+            },
+            "results": all_results,
+        }
+        # Strip retrieval_chunk_ids from per-query results (too verbose for JSON)
+        for r in dump["results"]:
+            r.pop("retrieved_chunk_ids", None)
+            r.pop("chunk_relevance_scores", None)
+
         with open(out_path, "w") as f:
-            json.dump({
-                "overall": round(overall, 1),
-                "faithfulness_avg": round(avg_faith, 3),
-                "relevance_avg": round(avg_rel, 3),
-                "citation_precision_avg": round(avg_cite, 3),
-                "latency_p50_ms": round(p50_lat, 0),
-                "latency_p95_ms": round(p95_lat, 0),
-                "results": all_results,
-            }, f, indent=2)
+            json.dump(dump, f, indent=2)
         print(f"  Detailed results saved to: {out_path}")
 
         return {
@@ -358,6 +521,13 @@ async def evaluate(
             "citation_precision": avg_cite,
             "latency_p50": p50_lat,
             "latency_p95": p95_lat,
+            "retrieval_metrics": {
+                "recall_at_5": avg_recall5,
+                "recall_at_10": avg_recall10,
+                "mrr_at_5": avg_mrr5,
+                "ndcg_at_5": avg_ndcg5,
+                "ndcg_at_10": avg_ndcg10,
+            },
         }
 
 

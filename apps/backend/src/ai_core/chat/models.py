@@ -27,6 +27,7 @@ class CitationReference:
     section_name: str = ""
     chunk_id: str = ""
     score: float = 0.0
+    content: str = ""
 
 
 @dataclass

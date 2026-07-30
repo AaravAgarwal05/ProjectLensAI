@@ -15,6 +15,7 @@ from typing import Any
 from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.models import LLMRequest
+from src.ai_core.llm.providers.google import GoogleProvider
 from src.ai_core.llm.providers.ollama import OllamaProvider
 from src.config.settings import get_settings
 
@@ -51,10 +52,17 @@ class RAGChatService:
             model_name="nomic-embed-text",
             base_url=_settings.ollama_base_url,
         )
-        self._llm_provider = OllamaProvider(
-            config=LLMConfiguration(base_url=_settings.ollama_base_url)
-        )
-        self._llm_config = LLMConfiguration(base_url=_settings.ollama_base_url)
+
+        # Pick LLM provider based on config
+        cfg = LLMConfiguration()
+        if cfg.provider == "google":
+            self._llm_provider = GoogleProvider(config=cfg)
+        else:
+            self._llm_provider = OllamaProvider(config=LLMConfiguration(
+                base_url=_settings.ollama_base_url,
+                model_name="llama3.2:1b",
+            ))
+        self._llm_config = cfg
         self._chroma_client: Any | None = None
 
     # ------------------------------------------------------------------

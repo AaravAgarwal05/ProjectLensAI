@@ -249,6 +249,7 @@ class ProcessingService:
                     chunking_strategy=chunking_strategy,
                     embedding_provider=embedding_provider,
                     original_filename=filename,
+                    preferences=preferences,
                 )
             else:
                 logger.info(
@@ -308,6 +309,7 @@ class ProcessingService:
         chunking_strategy: str,
         embedding_provider: str,
         original_filename: str,
+        preferences: dict | None = None,
     ) -> None:
         """Chunk and embed a parsed document, then index in vector store.
 

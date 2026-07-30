@@ -42,7 +42,10 @@ class AppSettings(BaseSettings):
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8000
 
-    # Ollama
+    # Google AI Studio (primary LLM provider)
+    GOOGLE_API_KEY: str = ""
+
+    # Ollama (secondary LLM provider)
     OLLAMA_HOST: str = "localhost"
     OLLAMA_PORT: int = 11434
 

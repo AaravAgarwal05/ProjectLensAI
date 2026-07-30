@@ -6,6 +6,7 @@ Pipeline:
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -45,6 +46,35 @@ _SUMMARY_PROMPT = (
     "for continuing the discussion. Be concise but preserve important details "
     "and document references.\n\n{history}\n\nSummary:"
 )
+
+
+@dataclasses.dataclass
+class PipelineTrace:
+    """Per-request stage-level timing breakdown."""
+
+    rewrite_ms: float = 0.0
+    retrieval_ms: float = 0.0
+    context_ms: float = 0.0
+    llm_ms: float = 0.0
+    save_ms: float = 0.0
+    total_ms: float = 0.0
+    chunks_retrieved: int = 0
+    chunks_cited: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    def log(self, query: str, model: str) -> None:
+        """Log the trace breakdown as structured info."""
+        logger.info(
+            "[TRACE] query=%.60s model=%s total=%dms "
+            "rewrite=%dms retrieval=%dms context=%dms llm=%dms save=%dms "
+            "chunks=%d cited=%d tokens=%d+%d",
+            query, model, int(self.total_ms),
+            int(self.rewrite_ms), int(self.retrieval_ms), int(self.context_ms),
+            int(self.llm_ms), int(self.save_ms),
+            self.chunks_retrieved, self.chunks_cited,
+            self.prompt_tokens, self.completion_tokens,
+        )
 
 
 class ChatOrchestrator:
@@ -95,6 +125,9 @@ class ChatOrchestrator:
         Returns:
             (assistant_message, citations)
         """
+        trace = PipelineTrace()
+        t0 = time.monotonic()
+
         # Validate
         self._validation.validate_message(user_message)
 
@@ -110,21 +143,27 @@ class ChatOrchestrator:
 
         # Query rewriting for multi-turn — make follow-ups self-contained
         search_query = user_message
+        t_rewrite = time.monotonic()
         if len(history) >= 3 and session.summary:
             rewritten = await self._rewrite_query(user_message, session.summary)
             if rewritten:
                 logger.debug("Rewrote query: %r -> %r", user_message[:50], rewritten[:50])
                 search_query = rewritten
+        trace.rewrite_ms = (time.monotonic() - t_rewrite) * 1000
 
         # Retrieve context chunks
+        t_ret = time.monotonic()
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
             chunks = await retrieve_chunks(search_query, session.report_ids, self._config.retrieval_top_k)
+        trace.retrieval_ms = (time.monotonic() - t_ret) * 1000
+        trace.chunks_retrieved = len(chunks)
 
         # Determine context strategy from session mode
         strategy = self._mode_to_strategy(session.mode)
 
         # Build context
+        t_ctx = time.monotonic()
         context_config = ContextConfiguration(default_strategy=strategy)
         ctx = await self._context_pipeline.run(
             query=user_message,
@@ -132,19 +171,25 @@ class ChatOrchestrator:
             history=history,  # type: ignore[arg-type]
             config=context_config,
         )
+        trace.context_ms = (time.monotonic() - t_ctx) * 1000
 
         # Build LLM request
         llm_request = self._prompt_builder.build(ctx)
 
         # Generate response
-        start = time.monotonic()
+        t_llm = time.monotonic()
         response = await self._llm.generate(llm_request)
-        _ = (time.monotonic() - start) * 1000  # latency placeholder
+        trace.llm_ms = (time.monotonic() - t_llm) * 1000
+        if response.metadata.token_usage:
+            trace.prompt_tokens = response.metadata.token_usage.prompt_tokens
+            trace.completion_tokens = response.metadata.token_usage.completion_tokens
 
         # Extract citations from context chunks
         citations = self._citations.extract(ctx.chunks, response.text)
+        trace.chunks_cited = len(citations)
 
         # Save assistant message
+        t_save = time.monotonic()
         assistant_msg = await self._create_assistant_message(session_id, response.text, citations)
 
         # Update session timestamp + summary
@@ -155,6 +200,12 @@ class ChatOrchestrator:
                 await self._session_mgr.update_session(session_id, summary=summary)
         else:
             await self._session_mgr.update_session(session_id)
+        trace.save_ms = (time.monotonic() - t_save) * 1000
+
+        trace.total_ms = (time.monotonic() - t0) * 1000
+        model = getattr(self._llm, '_config', None)
+        model_name = model.model_name if model else "unknown"
+        trace.log(user_message, model_name)
 
         return assistant_msg, citations
 
@@ -168,16 +219,10 @@ class ChatOrchestrator:
         user_message: str,
         retrieve_chunks: Callable[[str, list[str], int], Awaitable[list[ContextChunk]]] | None = None,
     ) -> AsyncIterator[StreamingChunk]:
-        """Process a message and stream the response tokens.
+        """Process a message and stream the response tokens."""
+        trace = PipelineTrace()
+        t0 = time.monotonic()
 
-        Args:
-            session_id: The chat session ID.
-            user_message: The user's message text.
-            retrieve_chunks: Optional callable to retrieve chunks.
-
-        Yields:
-            StreamingChunks as tokens arrive.
-        """
         self._validation.validate_message(user_message)
 
         session_model = await self._get_session_or_raise(session_id)
@@ -186,13 +231,17 @@ class ChatOrchestrator:
         await self._create_user_message(session_id, user_message)
 
         # Retrieve + context (same as non-streaming)
+        t_ret = time.monotonic()
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
             chunks = await retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
+        trace.retrieval_ms = (time.monotonic() - t_ret) * 1000
+        trace.chunks_retrieved = len(chunks)
 
         history = await self._load_history(session_id)
         strategy = self._mode_to_strategy(session.mode)
 
+        t_ctx = time.monotonic()
         context_config = ContextConfiguration(default_strategy=strategy)
         ctx = await self._context_pipeline.run(
             query=user_message,
@@ -200,6 +249,7 @@ class ChatOrchestrator:
             history=history,  # type: ignore[arg-type]
             config=context_config,
         )
+        trace.context_ms = (time.monotonic() - t_ctx) * 1000
 
         llm_request = self._prompt_builder.build(ctx)
         llm_request.stream = True
@@ -207,12 +257,15 @@ class ChatOrchestrator:
         # Stream tokens, collect full text for persistence
         full_text: list[str] = []
         citations: list[CitationReference] = []
+        t_llm = time.monotonic()
 
         async for chunk in self._llm.generate_stream(llm_request):
             if chunk.text:
                 full_text.append(chunk.text)
             if chunk.finish_reason:
+                trace.llm_ms = (time.monotonic() - t_llm) * 1000
                 citations = self._citations.extract(ctx.chunks)
+                trace.chunks_cited = len(citations)
                 # Persist BEFORE yielding the final chunk — the consumer
                 # may close the generator immediately after the final yield,
                 # skipping any code after this loop.
@@ -229,6 +282,10 @@ class ChatOrchestrator:
                         await self._session_mgr.update_session(session_id)
                 else:
                     await self._session_mgr.update_session(session_id)
+
+                trace.total_ms = (time.monotonic() - t0) * 1000
+                model = getattr(self._llm, '_config', None)
+                trace.log(user_message, model.model_name if model else "unknown")
 
                 yield chunk
                 return

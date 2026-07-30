@@ -19,10 +19,6 @@ class PageArtifactCleaner(TextCleaner):
     header or footer and removed from that position.
     """
 
-    _PAGE_NUMBER_RE = re.compile(
-        r"^(?:\s*[-–—]?\s*\d+\s*[-–—]?\s*|page\s+\d+\s*(?:of\s+\d+)?)\s*$",
-        re.IGNORECASE | re.MULTILINE,
-    )
     _MULTI_NEWLINE_RE = re.compile(r"\n{3,}")
     _WHITESPACE_ONLY_RE = re.compile(r"^\s*$", re.MULTILINE)
 
@@ -31,10 +27,49 @@ class PageArtifactCleaner(TextCleaner):
     # A line must appear at this position in at least this many blocks.
     _MIN_REPEAT_COUNT = 2
 
+    @staticmethod
+    def _is_number_only_line(line: str) -> bool:
+        """Bare number or optional dash/emdash wrapping: ``42``, ``- 42 -``, ``– 3 –``."""
+        return bool(re.match(r"^\s*[-–—]?\s*\d+\s*[-–—]?\s*$", line))
+
+    @staticmethod
+    def _is_page_marker_line(line: str) -> bool:
+        """Lines like ``Page 3 of 10``, ``Page 5``."""
+        stripped = line.strip()
+        return bool(re.match(r"(?i)^page\s+\d+(\s+of\s+\d+)?\s*$", stripped))
+
+    @staticmethod
+    def _remove_standalone_numbers(text: str) -> str:
+        """Remove lines that look like page numbers, preserving consecutive
+        number runs (likely table data)."""
+        lines = text.splitlines()
+        result: list[str] = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            is_page_marker = PageArtifactCleaner._is_page_marker_line(line)
+            is_solo_num = PageArtifactCleaner._is_number_only_line(line)
+            if is_page_marker or is_solo_num:
+                if is_solo_num:
+                    # Only skip if singleton (not part of consecutive number lines)
+                    prev_is_num = i > 0 and PageArtifactCleaner._is_number_only_line(lines[i - 1])
+                    next_is_num = i + 1 < len(lines) and PageArtifactCleaner._is_number_only_line(lines[i + 1])
+                    if prev_is_num or next_is_num:
+                        result.append(line)
+                        i += 1
+                        continue
+                i += 1  # skip — page marker or standalone number
+                continue
+            result.append(line)
+            i += 1
+        return "\n".join(result)
+
     def clean(self, text: str) -> str:
         """Remove page artifacts and normalise leftover whitespace."""
         # 1. Remove standalone page-number lines.
-        text = self._PAGE_NUMBER_RE.sub("", text)
+        #    Only remove when the line is isolated (surrounding lines are NOT
+        #    also numbers) — consecutive number lines are likely table data.
+        text = self._remove_standalone_numbers(text)
 
         # 2. Detect and remove repeated headers/footers.
         text = self._remove_repeated_boundary_lines(text)

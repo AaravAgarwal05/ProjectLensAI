@@ -54,6 +54,7 @@ class CitationEngine:
                 section_name=chunk.section_name or "",
                 chunk_id=chunk.chunk_id or "",
                 score=chunk.score,
+                content=chunk.content,
             )
             citations.append(ref)
 
@@ -72,6 +73,7 @@ class CitationEngine:
                 "section_name": c.section_name,
                 "chunk_id": c.chunk_id,
                 "score": c.score,
+                "content": c.content,
             }
             for c in citations
         ]
