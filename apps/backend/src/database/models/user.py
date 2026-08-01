@@ -2,7 +2,7 @@
 
 import json
 
-from sqlalchemy import Boolean, Column, String, TypeDecorator
+from sqlalchemy import Boolean, Column, Integer, String, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
 from src.database.base import Base
@@ -64,6 +64,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     hashed_password: Column[str] = Column(String(255), nullable=False)
     role: Column[str] = Column(String(50), nullable=False, default="user")
     is_active: Column[bool] = Column(Boolean, nullable=False, default=True)
+    token_version: Column[int] = Column(Integer, nullable=False, default=0, server_default="0")
     preferences: Column[dict] = Column(
         JSONColumn(),
         nullable=False,

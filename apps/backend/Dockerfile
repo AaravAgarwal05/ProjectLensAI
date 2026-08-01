@@ -39,6 +39,11 @@ COPY packages/core/src/ packages/core/src/
 # source roots directly — same effect, no `uv run` wrapper layer at runtime.
 ENV PYTHONPATH=/app/apps/backend:/app/packages/core/src:/app/packages/shared/src
 
+# Run as an unprivileged user — the process only writes to /tmp (temp
+# parse files), which is world-writable.
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
 EXPOSE 8000
 
 # Run uvicorn directly from the workspace venv (no `uv run` layer at runtime).

@@ -17,6 +17,8 @@ from src.document_processing.parsers.base import BaseParser
 
 logger = logging.getLogger(__name__)
 
+_MAX_TEXT_CHARS = 20_000_000
+
 try:
     from docx import Document as DocxDocument
 except ImportError as exc:
@@ -65,6 +67,17 @@ class DOCXParser(BaseParser):
             # --- Extract paragraphs ---
             paragraphs = [p.text for p in doc.paragraphs]
             raw_text = "\n".join(paragraphs)
+
+            # Decompression-bomb guard: a small .docx can expand to a huge
+            # XML tree. Cap extracted text to bound downstream memory use.
+            if len(raw_text) > _MAX_TEXT_CHARS:
+                raise ParseError(
+                    message=(
+                        f"DOCX decompressed to {len(raw_text):,} characters — "
+                        f"exceeds the {_MAX_TEXT_CHARS:,} limit."
+                    ),
+                    details={"file_path": file_path},
+                )
 
             # Edge case: empty document
             if not raw_text.strip():

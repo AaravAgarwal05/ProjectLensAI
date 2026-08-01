@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import mimetypes
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -69,8 +70,9 @@ class ReportService:
         """
         self._validate_file(file=file)
 
-        content = await file.read()
+        content = await self._read_upload(file=file)
         checksum = self._compute_checksum(content)
+        mime_type = self._detect_mime(file.filename, file.content_type)
 
         storage_path = await self._store_file(file=file, content=content)
 
@@ -86,7 +88,7 @@ class ReportService:
             storage_provider="supabase",
             storage_path=storage_path,
             original_filename=file.filename,
-            mime_type=file.content_type,
+            mime_type=mime_type,
             checksum=checksum,
             file_size=len(content),
         )
@@ -96,7 +98,7 @@ class ReportService:
             version_number=1,
             storage_path=storage_path,
             original_filename=file.filename or "unknown",
-            mime_type=file.content_type or "application/octet-stream",
+            mime_type=mime_type or "application/octet-stream",
             checksum=checksum,
             file_size=len(content),
         )
@@ -231,8 +233,9 @@ class ReportService:
 
         self._validate_file(file=file)
 
-        content = await file.read()
+        content = await self._read_upload(file=file)
         checksum = self._compute_checksum(content)
+        mime_type = self._detect_mime(file.filename, file.content_type)
 
         storage_path = await self._store_file(file=file, content=content)
 
@@ -243,7 +246,7 @@ class ReportService:
             version_number=next_version,
             storage_path=storage_path,
             original_filename=file.filename or "unknown",
-            mime_type=file.content_type or "application/octet-stream",
+            mime_type=mime_type or "application/octet-stream",
             checksum=checksum,
             file_size=len(content),
         )
@@ -259,11 +262,45 @@ class ReportService:
     # ------------------------------------------------------------------
 
     async def _store_file(self, file: UploadFile, content: bytes) -> str:
-        """Generate a unique storage path and persist the file."""
+        """Generate a unique storage path and persist the file.
+
+        The user-supplied filename is never used in the storage path — a
+        client-controlled string could contain path separators / traversal
+        (``../../etc/...``). The original name is kept only in the DB row.
+        """
         file_id = uuid.uuid4().hex
-        storage_path = f"reports/{file_id}/{file.filename}"
+        ext = _extension(file.filename) if file.filename else ""
+        storage_path = f"reports/{file_id}/{file_id}{ext}"
         await self._storage.store(storage_path, content)
         return storage_path
+
+    async def _read_upload(self, file: UploadFile) -> bytes:
+        """Read the upload with a hard size cap to bound memory use.
+
+        ``Content-Length`` (checked in ``_validate_file``) can be absent or
+        spoofed, so the actual body read is capped here as well.
+        """
+        limit = self._settings.MAX_UPLOAD_SIZE
+        content = await file.read(limit + 1)
+        if len(content) > limit:
+            raise ProjectLensError(
+                message=(
+                    f"File exceeds the maximum upload size of "
+                    f"{limit // (1024 * 1024):.0f} MiB."
+                ),
+                code="file_too_large",
+                status_code=413,
+            )
+        return content
+
+    @staticmethod
+    def _detect_mime(filename: str | None, client_mime: str | None) -> str:
+        """Server-side MIME detection — don't trust the client content type."""
+        if filename:
+            guessed = mimetypes.guess_type(filename)[0]
+            if guessed:
+                return guessed
+        return client_mime or "application/octet-stream"
 
     def _validate_file(self, file: UploadFile) -> None:
         """Validate file extension and size.  Raises ``ProjectLensError``."""

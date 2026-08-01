@@ -89,12 +89,15 @@ class GoogleProvider(LLMProvider):
         client = await self._get_client()
         model = request.model_name or self._config.model_name
         key = self._resolve_key()
-        url = f"/models/{model}:generateContent?key={key}"
+        # Key goes in a header, not the query string (avoids key leakage via
+        # access logs / referrers). Gemini accepts `x-goog-api-key`.
+        url = f"/models/{model}:generateContent"
+        headers = {"x-goog-api-key": key}
         payload = self._build_payload(request)
 
         try:
             start = time.monotonic()
-            response = await client.post(url, json=payload)
+            response = await client.post(url, headers=headers, json=payload)
             elapsed_ms = (time.monotonic() - start) * 1000
         except httpx.TimeoutException as exc:
             raise TimeoutError(f"Google request timed out after {self._config.timeout}s") from exc
@@ -127,11 +130,12 @@ class GoogleProvider(LLMProvider):
         client = await self._get_client()
         model = request.model_name or self._config.model_name
         key = self._resolve_key()
-        url = f"/models/{model}:streamGenerateContent?alt=sse&key={key}"
+        url = f"/models/{model}:streamGenerateContent?alt=sse"
+        headers = {"x-goog-api-key": key}
         payload = self._build_payload(request)
 
         try:
-            async with client.stream("POST", url, json=payload) as resp:
+            async with client.stream("POST", url, headers=headers, json=payload) as resp:
                 if resp.status_code != 200:
                     err = _parse_error(resp)
                     raise StreamingError(f"Google streaming returned {resp.status_code}: {err}")

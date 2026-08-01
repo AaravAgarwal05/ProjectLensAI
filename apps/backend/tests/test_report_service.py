@@ -122,11 +122,14 @@ class TestCreateReport:
         # File was read
         f.read.assert_awaited_once()
 
-        # Content was stored
+        # Content was stored — path is server-generated (UUID filename) so a
+        # client-supplied filename can never traverse or collide.
         mock_storage.store.assert_awaited_once()
         store_path: str = mock_storage.store.call_args[0][0]
         assert store_path.startswith("reports/")
-        assert store_path.endswith("/test.pdf")
+        # extension preserved, user filename never used in the path
+        assert store_path.endswith(".pdf")
+        assert "/test.pdf" not in store_path
 
         # Report was created with correct metadata
         report_service._report_repo.create.assert_awaited_once_with(

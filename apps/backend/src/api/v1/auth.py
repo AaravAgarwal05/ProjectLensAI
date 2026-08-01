@@ -3,12 +3,13 @@
 All endpoints persist to the database using real password hashing and JWT tokens.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db
+from src.api.rate_limiter import limiter
 from src.database.models import User
 
 router = APIRouter()
@@ -71,7 +72,7 @@ def _verify_password(plain: str, hashed: str) -> bool:
     return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def _create_token(user_id: str) -> str:
+def _create_token(user_id: str, token_version: int = 0) -> str:
     """Create a signed JWT access token."""
     import time
 
@@ -82,6 +83,7 @@ def _create_token(user_id: str) -> str:
     settings = get_settings()
     payload = {
         "sub": user_id,
+        "tv": token_version,
         "iat": int(time.time()),
         "exp": int(time.time()) + settings.JWT_EXPIRATION_MINUTES * 60,
     }
@@ -94,7 +96,12 @@ def _create_token(user_id: str) -> str:
 
 
 @router.post("/register", response_model=AuthResponse)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
+@limiter.limit("5/hour")
+async def register(
+    request: Request,
+    body: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+) -> AuthResponse:
     """Register a new user account.
 
     Validates uniqueness, hashes the password, inserts into DB,
@@ -125,12 +132,17 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
     await db.flush()
     await db.refresh(user)
 
-    token = _create_token(str(user.id))
+    token = _create_token(str(user.id), user.token_version or 0)
     return AuthResponse(user=UserOut.from_orm(user), token=token)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthResponse:
+@limiter.limit("10/minute")
+async def login(
+    request: Request,
+    body: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> AuthResponse:
     """Authenticate a user and return a JWT access token."""
     result = await db.execute(
         select(User).where(User.email == body.email.strip().lower())
@@ -139,7 +151,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> AuthR
     if not user or not _verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = _create_token(str(user.id))
+    token = _create_token(str(user.id), user.token_version or 0)
     return AuthResponse(user=UserOut.from_orm(user), token=token)
 
 
@@ -156,14 +168,21 @@ async def refresh(
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Issue a new JWT for the currently authenticated user."""
-    token = _create_token(str(current_user.id))
+    token = _create_token(str(current_user.id), current_user.token_version or 0)
     return AuthResponse(user=UserOut.from_orm(current_user), token=token)
 
 
 @router.post("/logout")
-async def logout() -> dict:
-    """Logout — no-op for stateless JWT auth.
+async def logout(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Revoke the user's tokens.
 
-    Clients should discard the token on their end.
+    Bumps the account's token_version so every previously issued JWT is
+    rejected on the next authenticated request. Clients should also discard
+    the token locally.
     """
+    current_user.token_version = (current_user.token_version or 0) + 1
+    await db.commit()
     return {"message": "Logged out successfully"}

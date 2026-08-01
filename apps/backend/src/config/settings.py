@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +12,7 @@ class AppSettings(BaseSettings):
     # Project metadata
     PROJECT_NAME: str = "ProjectLens AI"
     VERSION: str = "0.1.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
     ENV: str = "development"
 
     # Database
@@ -57,7 +58,7 @@ class AppSettings(BaseSettings):
         return f"http://{self.OLLAMA_HOST}:{self.OLLAMA_PORT}"
 
     # Logging
-    LOG_LEVEL: str = "DEBUG"
+    LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(
         env_file=[".env.local", ".env"],
@@ -65,6 +66,21 @@ class AppSettings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def _fail_fast_on_insecure_secret_key(self) -> "AppSettings":
+        """Refuse to boot with the shipped insecure SECRET_KEY default.
+
+        The hardcoded default is public in the repository — signing JWTs with it
+        would let anyone forge tokens. Require an explicit override.
+        """
+        if self.SECRET_KEY == "change-this-in-production":
+            raise ValueError(
+                "SECRET_KEY is set to the known-insecure default. "
+                "Generate a strong random key (e.g. `openssl rand -hex 64`) and "
+                "set it via SECRET_KEY in the environment or .env before booting."
+            )
+        return self
 
 
 @lru_cache

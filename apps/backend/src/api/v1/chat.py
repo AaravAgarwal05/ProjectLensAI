@@ -7,7 +7,7 @@ import logging
 from collections.abc import AsyncIterator, Awaitable
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -469,6 +469,16 @@ def _model_to_message_out(message_model: Any) -> MessageOut:
     )
 
 
+async def _get_owned_session(
+    session_mgr: SessionManager, session_id: str, user: User
+):
+    """Load a session and 404 unless the current user owns it (IDOR guard)."""
+    session = await session_mgr.get_session(session_id)
+    if session is None or str(session.user_id) != str(user.id):
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    return session
+
+
 # ---------------------------------------------------------------------------
 # Session endpoints
 # ---------------------------------------------------------------------------
@@ -519,15 +529,11 @@ async def create_conversation(
 async def get_conversation(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> SessionOut:
     """Get a chat session by ID."""
     session_mgr = SessionManager(db)
-    session = await session_mgr.get_session(session_id)
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session '{session_id}' not found",
-        )
+    session = await _get_owned_session(session_mgr, session_id, user)
     msg_mgr = MessageManager(db)
     count = await msg_mgr.count_messages(session_id)
     return _model_to_session_out(session, message_count=count)
@@ -538,9 +544,11 @@ async def update_conversation(
     session_id: str,
     body: UpdateSessionRequest,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> SessionOut:
     """Update a chat session (title, mode, report_ids)."""
     session_mgr = SessionManager(db)
+    await _get_owned_session(session_mgr, session_id, user)
     updates: dict[str, Any] = {}
     if body.title is not None:
         updates["title"] = body.title
@@ -561,9 +569,11 @@ async def update_conversation(
 async def delete_conversation(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> None:
     """Delete a chat session and all its messages."""
     session_mgr = SessionManager(db)
+    await _get_owned_session(session_mgr, session_id, user)
     deleted = await session_mgr.delete_session(session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -573,9 +583,11 @@ async def delete_conversation(
 async def archive_conversation(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> SessionOut:
     """Archive a chat session."""
     session_mgr = SessionManager(db)
+    await _get_owned_session(session_mgr, session_id, user)
     session = await session_mgr.archive_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -588,9 +600,11 @@ async def archive_conversation(
 async def restore_conversation(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> SessionOut:
     """Restore an archived chat session."""
     session_mgr = SessionManager(db)
+    await _get_owned_session(session_mgr, session_id, user)
     session = await session_mgr.restore_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
@@ -631,9 +645,7 @@ async def send_message(
         )
         session_id = session.id
     else:
-        session = await session_mgr.get_session(session_id)
-        if session is None:
-            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        session = await _get_owned_session(session_mgr, session_id, user)
 
     # Generate AI response — use RAG if report_ids are provided, else placeholder
     # Note: user message is saved inside each branch (orchestrator saves it internally)
@@ -774,9 +786,14 @@ async def _stream_events(
                     f"data: {json.dumps({'type': 'done', 'session_id': session_id})}\n\n"
                 )
                 return
-    except Exception as exc:
+    except Exception:
         logger.exception("Streaming failed")
-        yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        # Don't leak internal exception details to the client — log them,
+        # send a generic message instead.
+        yield (
+            "data: "
+            f"{json.dumps({'type': 'error', 'message': 'An internal error occurred during streaming.'})}\n\n"
+        )
 
 
 @router.post("/send/stream")
@@ -801,9 +818,7 @@ async def send_message_stream(
         )
         session_id = session.id
     else:
-        session = await session_mgr.get_session(session_id)
-        if session is None:
-            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        session = await _get_owned_session(session_mgr, session_id, user)
 
     return StreamingResponse(
         _stream_events(
@@ -833,12 +848,11 @@ async def list_messages(
     offset: int = Query(0, ge=0),
     before_id: str | None = Query(None, alias="before_id"),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> list[MessageOut]:
     """List messages in a session."""
     session_mgr = SessionManager(db)
-    session = await session_mgr.get_session(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    await _get_owned_session(session_mgr, session_id, user)
 
     msg_mgr = MessageManager(db)
     msgs = await msg_mgr.list_messages(
@@ -858,8 +872,11 @@ async def delete_message(
     session_id: str,
     message_id: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> None:
     """Delete a single message."""
+    session_mgr = SessionManager(db)
+    await _get_owned_session(session_mgr, session_id, user)
     msg_mgr = MessageManager(db)
     deleted = await msg_mgr.delete_message(message_id)
     if not deleted:
