@@ -43,7 +43,7 @@ dev = [
     "pytest-cov>=4.1,<6",
     "ruff>=0.2,<1",
     "black>=24.1,<25",
-    "mypy>=1.8,<2",
+    "mypy>=1.8,<3",
 ]
 ai = [
     "sentence-transformers>=2.7,<4",
