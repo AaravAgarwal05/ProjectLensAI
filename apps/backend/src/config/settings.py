@@ -24,6 +24,9 @@ class AppSettings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 60
 
+    # Auth cookie
+    COOKIE_SECURE: bool = False
+
     # Storage
     STORAGE_PROVIDER: str = "local"
     STORAGE_LOCAL_PATH: str = "./data/storage"
@@ -52,6 +55,10 @@ class AppSettings(BaseSettings):
 
     # OpenCode Zen (free-model LLM provider — set OPENCODE_ZEN_API_KEY to use)
     OPENCODE_ZEN_API_KEY: str = ""
+
+    # Error monitoring — set a Sentry DSN to enable crash + performance
+    # reporting. Empty disables Sentry entirely.
+    SENTRY_DSN: str = ""
 
     @property
     def ollama_base_url(self) -> str:

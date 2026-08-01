@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_current_user, get_db
 from src.config.settings import AppSettings, get_settings
 from src.database import session as db_session
+from src.database.models import User
 from src.document_processing.cleaners.artifacts import PageArtifactCleaner
 from src.document_processing.cleaners.base import CleaningPipeline
 from src.document_processing.cleaners.unicode import UnicodeCleaner
@@ -129,7 +130,7 @@ async def create_report(
     year: int | None = Form(None),
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> ReportResponse:
     """Upload a new report together with its initial file (v1).
 
@@ -154,6 +155,7 @@ async def create_report(
     report = await service.create_report(
         file=file,
         title=title,
+        owner_id=str(user.id),
         description=description,
         department=department,
         author=author,
@@ -194,14 +196,16 @@ async def list_reports(
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
+    user: User = Depends(get_current_user),
 ) -> ReportListResponse:
-    """List reports with optional status / author / text search filters."""
+    """List the caller's reports with optional status / author / search filters."""
     service = ReportService(
         session=db,
         storage=_build_storage_provider(settings),
         settings=settings,
     )
     reports, total = await service.list_reports(
+        owner_id=str(user.id),
         skip=skip,
         limit=limit,
         status=status,
@@ -221,19 +225,15 @@ async def get_report(
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
+    user: User = Depends(get_current_user),
 ) -> ReportResponse:
-    """Retrieve a single report by ID, including all version history."""
+    """Retrieve a single report by ID — only if the caller owns it."""
     service = ReportService(
         session=db,
         storage=_build_storage_provider(settings),
         settings=settings,
     )
-    report = await service.get_report(report_id)
-    if report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Report {report_id} not found",
-        )
+    report = await service.get_report(report_id, owner_id=str(user.id))
     return ReportResponse.model_validate(report)
 
 
@@ -243,7 +243,7 @@ async def update_report(
     body: UpdateReportRequest,
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> ReportResponse:
     """Partially update report metadata.
 
@@ -262,12 +262,7 @@ async def update_report(
         storage=_build_storage_provider(settings),
         settings=settings,
     )
-    report = await service.update_report(report_id, **updates)
-    if report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Report {report_id} not found",
-        )
+    report = await service.update_report(report_id, owner_id=str(user.id), **updates)
     return ReportResponse.model_validate(report)
 
 
@@ -276,15 +271,15 @@ async def delete_report(
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> None:
-    """Delete a report and all its version files from storage."""
+    """Delete a report the caller owns, and its version files from storage."""
     service = ReportService(
         session=db,
         storage=_build_storage_provider(settings),
         settings=settings,
     )
-    deleted = await service.delete_report(report_id)
+    deleted = await service.delete_report(report_id, owner_id=str(user.id))
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -308,9 +303,9 @@ async def upload_version(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> VersionResponse:
-    """Upload a new file version for an existing report.
+    """Upload a new file version for a report the caller owns.
 
     After the version is created, background processing is triggered
     automatically to re-process the report content.
@@ -320,7 +315,9 @@ async def upload_version(
         storage=_build_storage_provider(settings),
         settings=settings,
     )
-    version = await service.upload_new_version(report_id=report_id, file=file)
+    version = await service.upload_new_version(
+        report_id=report_id, owner_id=str(user.id), file=file
+    )
 
     # Trigger background processing for the new version content.
     processing_service = _build_processing_service(settings)
@@ -339,19 +336,15 @@ async def list_versions(
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
+    user: User = Depends(get_current_user),
 ) -> list[VersionResponse]:
-    """List all versions for a report, ordered by version number."""
+    """List all versions for a report the caller owns, by version number."""
     service = ReportService(
         session=db,
         storage=_build_storage_provider(settings),
         settings=settings,
     )
-    report = await service.get_report(report_id)
-    if report is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Report {report_id} not found",
-        )
+    report = await service.get_report(report_id, owner_id=str(user.id))
     return [VersionResponse.model_validate(v) for v in report.versions]
 
 
@@ -395,12 +388,25 @@ async def search_report_chunks(
     report_id: str,
     body: SearchRequest,
     request: Request,
+    db: AsyncSession = Depends(get_db),
     settings: AppSettings = Depends(get_settings),
+    user: User = Depends(get_current_user),
 ) -> SearchResponse:
     """Search a report's indexed chunks by embedding similarity.
 
-    Returns the raw ranked list of chunks (no reranking) for evaluation.
+    Only the report's owner may search its chunks — the report row is
+    checked for ownership before ChromaDB is touched.
     """
+    from src.services import ReportService
+
+    service = ReportService(
+        session=db,
+        storage=_build_storage_provider(settings),
+        settings=settings,
+    )
+    # 404 (not 403) if the report doesn't exist or isn't the caller's.
+    await service.get_report(UUID(report_id), owner_id=str(user.id))
+
     client = _get_chroma_client(request)
     if client is None:
         raise HTTPException(status_code=503, detail="ChromaDB not available")

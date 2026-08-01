@@ -144,7 +144,11 @@ class TestGetReport:
 
     async def test_404_when_not_found(self, api_client: AsyncClient) -> None:
         with patch.object(ReportService, "get_report", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
+            mock_get.side_effect = ProjectLensError(
+                message="Report not found",
+                code="report_not_found",
+                status_code=404,
+            )
 
             response = await api_client.get(f"/api/v1/reports/{uuid4()}")
 
@@ -180,7 +184,11 @@ class TestUpdateReport:
 
     async def test_404_when_report_missing(self, api_client: AsyncClient) -> None:
         with patch.object(ReportService, "update_report", new_callable=AsyncMock) as mock_update:
-            mock_update.return_value = None
+            mock_update.side_effect = ProjectLensError(
+                message="Report not found",
+                code="report_not_found",
+                status_code=404,
+            )
 
             response = await api_client.patch(
                 f"/api/v1/reports/{uuid4()}",
@@ -202,7 +210,11 @@ class TestDeleteReport:
 
         # Subsequent GET returns 404
         with patch.object(ReportService, "get_report", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
+            mock_get.side_effect = ProjectLensError(
+                message="Report not found",
+                code="report_not_found",
+                status_code=404,
+            )
             response = await api_client.get(f"/api/v1/reports/{report_id}")
             assert response.status_code == 404
 
@@ -271,7 +283,11 @@ class TestListVersions:
 
     async def test_404_when_report_missing(self, api_client: AsyncClient) -> None:
         with patch.object(ReportService, "get_report", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
+            mock_get.side_effect = ProjectLensError(
+                message="Report not found",
+                code="report_not_found",
+                status_code=404,
+            )
 
             response = await api_client.get(f"/api/v1/reports/{uuid4()}/versions")
             assert response.status_code == 404
@@ -282,13 +298,21 @@ class TestNonexistentReport:
 
     async def test_get_nonexistent(self, api_client: AsyncClient) -> None:
         with patch.object(ReportService, "get_report", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
+            mock_get.side_effect = ProjectLensError(
+                message="Report not found",
+                code="report_not_found",
+                status_code=404,
+            )
             response = await api_client.get(f"/api/v1/reports/{uuid4()}")
             assert response.status_code == 404
 
     async def test_patch_nonexistent(self, api_client: AsyncClient) -> None:
         with patch.object(ReportService, "update_report", new_callable=AsyncMock) as mock_update:
-            mock_update.return_value = None
+            mock_update.side_effect = ProjectLensError(
+                message="Report not found",
+                code="report_not_found",
+                status_code=404,
+            )
             response = await api_client.patch(
                 f"/api/v1/reports/{uuid4()}", json={"title": "Nope"}
             )

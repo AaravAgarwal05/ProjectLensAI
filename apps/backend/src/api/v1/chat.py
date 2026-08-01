@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ai_core.chat.citations import CitationEngine
@@ -30,7 +31,7 @@ from src.ai_core.llm.providers.opencode_zen import OpenCodeZenProvider
 from src.ai_core.tracing.models import RequestTrace
 from src.api.dependencies import get_current_user, get_db
 from src.api.rate_limiter import limiter
-from src.database.models import User
+from src.database.models import Report, User
 from src.services.rag_chat_service import RAGChatService
 
 logger = logging.getLogger(__name__)
@@ -479,6 +480,31 @@ async def _get_owned_session(
     return session
 
 
+async def _owned_report_ids(
+    db: AsyncSession, owner_id: str, report_ids: list[str]
+) -> list[str]:
+    """Filter ``report_ids`` down to reports the user owns (IDOR guard).
+
+    RAG retrieval keyed by report_id would otherwise let a user pull chunks
+    from a report they don't own by guessing its UUID.
+    """
+    if not report_ids:
+        return []
+    result = await db.execute(
+        select(Report.id).where(
+            Report.id.in_(report_ids),
+            Report.owner_id == str(owner_id),
+        )
+    )
+    owned = {str(row[0]) for row in result.all()}
+    dropped = set(report_ids) - owned
+    if dropped:
+        logger.warning(
+            "Ignoring %d report_id(s) not owned by user %s", len(dropped), owner_id
+        )
+    return [rid for rid in report_ids if rid in owned]
+
+
 # ---------------------------------------------------------------------------
 # Session endpoints
 # ---------------------------------------------------------------------------
@@ -555,7 +581,11 @@ async def update_conversation(
     if body.mode is not None:
         updates["mode"] = body.mode
     if body.report_ids is not None:
-        updates["report_ids"] = body.report_ids
+        # Ownership-scope stored report_ids so a session can't be pointed
+        # at another user's reports (IDOR guard).
+        updates["report_ids"] = await _owned_report_ids(
+            db, str(user.id), body.report_ids
+        )
 
     updated = await session_mgr.update_session(session_id, **updates)
     if updated is None:
@@ -634,12 +664,15 @@ async def send_message(
     session_mgr = SessionManager(db)
     msg_mgr = MessageManager(db)
 
+    # Filter requested report_ids to only those the caller owns (IDOR guard).
+    report_ids = await _owned_report_ids(db, str(user.id), body.report_ids or [])
+
     # Resolve / create session
     session_id = body.session_id
     if session_id is None:
         session = await session_mgr.create_session(
             title=body.message[:80] if body.message else "New Chat",
-            report_ids=body.report_ids or [],
+            report_ids=report_ids,
             mode=body.mode,
             user_id=str(user.id),
         )
@@ -649,7 +682,6 @@ async def send_message(
 
     # Generate AI response — use RAG if report_ids are provided, else placeholder
     # Note: user message is saved inside each branch (orchestrator saves it internally)
-    report_ids = body.report_ids or []
     citations_out: list[CitationRefOut] = []
 
     if report_ids:
@@ -807,12 +839,15 @@ async def send_message_stream(
     """Send a message and stream the AI response via SSE."""
     session_mgr = SessionManager(db)
 
+    # Filter requested report_ids to only those the caller owns (IDOR guard).
+    report_ids = await _owned_report_ids(db, str(user.id), body.report_ids or [])
+
     # Resolve / create session
     session_id = body.session_id
     if session_id is None:
         session = await session_mgr.create_session(
             title=body.message[:80] if body.message else "New Chat",
-            report_ids=body.report_ids or [],
+            report_ids=report_ids,
             mode=body.mode,
             user_id=str(user.id),
         )
@@ -824,7 +859,7 @@ async def send_message_stream(
         _stream_events(
             session_id=session_id,
             message=body.message,
-            report_ids=body.report_ids or [],
+            report_ids=report_ids,
             db=db,
             mode=body.mode,
             model_name=user.preferences.get("llm_model") if (

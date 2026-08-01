@@ -13,6 +13,7 @@ class Report(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "reports"
     __allow_unmapped__ = True
 
+    owner_id: Column[str | None] = Column(String(36), nullable=True, index=True)
     title: Column[str] = Column(String, nullable=False, index=True)
     description: Column[str | None] = Column(Text, nullable=True)
     department: Column[str | None] = Column(String, nullable=True)

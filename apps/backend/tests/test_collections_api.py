@@ -11,6 +11,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
+from src.api.exceptions import ProjectLensError
 from src.services import CollectionService
 
 from .conftest import make_collection
@@ -103,7 +104,11 @@ class TestGetCollection:
 
     async def test_404_when_not_found(self, api_client: AsyncClient) -> None:
         with patch.object(CollectionService, "get", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
+            mock_get.side_effect = ProjectLensError(
+                message="Collection not found",
+                code="collection_not_found",
+                status_code=404,
+            )
 
             response = await api_client.get(f"/api/v1/collections/{uuid4()}")
         assert response.status_code == 404
@@ -135,7 +140,11 @@ class TestUpdateCollection:
 
     async def test_404_when_missing(self, api_client: AsyncClient) -> None:
         with patch.object(CollectionService, "update", new_callable=AsyncMock) as mock_update:
-            mock_update.return_value = None
+            mock_update.side_effect = ProjectLensError(
+                message="Collection not found",
+                code="collection_not_found",
+                status_code=404,
+            )
 
             response = await api_client.patch(
                 f"/api/v1/collections/{uuid4()}",
@@ -168,17 +177,12 @@ class TestAddReportToCollection:
     async def test_returns_200(self, api_client: AsyncClient) -> None:
         col_id = uuid4()
         report_id = uuid4()
-        with (
-            patch.object(CollectionService, "get", new_callable=AsyncMock) as mock_get,
-            patch.object(CollectionService, "add_report", new_callable=AsyncMock) as mock_add,
-        ):
-            mock_get.return_value = make_collection(id=col_id)
-
+        with patch.object(CollectionService, "add_report", new_callable=AsyncMock) as mock_add:
             response = await api_client.post(f"/api/v1/collections/{col_id}/reports/{report_id}")
 
         assert response.status_code == 200
         assert response.json() == {"message": "Report added to collection"}
-        mock_add.assert_awaited_once_with(col_id, report_id)
+        mock_add.assert_awaited_once_with(col_id, report_id, owner_id="test-user-id")
 
     async def test_404_when_collection_missing(self, api_client: AsyncClient) -> None:
         with patch.object(CollectionService, "get", new_callable=AsyncMock) as mock_get:
@@ -200,4 +204,4 @@ class TestRemoveReportFromCollection:
             response = await api_client.delete(f"/api/v1/collections/{col_id}/reports/{report_id}")
 
         assert response.status_code == 204
-        mock_remove.assert_awaited_once_with(col_id, report_id)
+        mock_remove.assert_awaited_once_with(col_id, report_id, owner_id="test-user-id")

@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -14,6 +14,9 @@ from src.database import session as db_session
 from src.database.models import User
 
 _security_scheme = HTTPBearer(auto_error=False)
+
+# Must match src/api/v1/auth.py::AUTH_COOKIE
+AUTH_COOKIE = "auth_token"
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -35,17 +38,26 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_security_scheme),
 ) -> User:
-    """Resolve the current user from the JWT bearer token.
+    """Resolve the current user from the JWT bearer token or HttpOnly cookie.
 
-    Decodes the token, loads the user from the database,
-    and returns the ORM User object.
+    The Bearer header takes precedence (kept for API tooling / the eval
+    script); the cookie is the primary path for the web app, which can
+    never read it from JS. Decodes the token, loads the user from the
+    database, and returns the ORM User object.
 
     Raises:
         HTTPException 401: No token, invalid token, or user not found.
     """
-    if credentials is None:
+    token: str | None = None
+    if credentials is not None:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get(AUTH_COOKIE)
+
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -55,7 +67,7 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(
-            credentials.credentials,
+            token,
             settings.SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
         )

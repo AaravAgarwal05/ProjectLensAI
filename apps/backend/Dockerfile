@@ -34,6 +34,7 @@ COPY apps/backend/src/ apps/backend/src/
 COPY apps/backend/alembic/ apps/backend/alembic/
 COPY packages/shared/src/ packages/shared/src/
 COPY packages/core/src/ packages/core/src/
+COPY apps/backend/entrypoint.sh apps/backend/entrypoint.sh
 
 # uv sync ran before source copy, so editable installs are stale. Expose the
 # source roots directly — same effect, no `uv run` wrapper layer at runtime.
@@ -41,11 +42,13 @@ ENV PYTHONPATH=/app/apps/backend:/app/packages/core/src:/app/packages/shared/src
 
 # Run as an unprivileged user — the process only writes to /tmp (temp
 # parse files), which is world-writable.
-RUN useradd --create-home --uid 10001 appuser
+RUN useradd --create-home --uid 10001 appuser && \
+    chmod +x /app/apps/backend/entrypoint.sh
 USER appuser
 
 EXPOSE 8000
 
-# Run uvicorn directly from the workspace venv (no `uv run` layer at runtime).
-# uv creates the venv at the workspace root (/app/.venv), not in the member dir.
-CMD ["/app/.venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# The entrypoint runs `alembic upgrade head` before starting the API, so a
+# deploy can never boot against an un-migrated database. uvicorn runs
+# directly from the workspace venv (no `uv run` layer at runtime).
+CMD ["/app/apps/backend/entrypoint.sh"]

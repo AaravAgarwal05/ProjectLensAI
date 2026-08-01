@@ -1,5 +1,5 @@
 import type { User } from '@/types'
-import { setAuthToken, clearAuthToken, apiRequest } from '@/lib/api'
+import { apiRequest } from '@/lib/api'
 
 // ─── Raw backend response types (snake_case) ───
 
@@ -37,9 +37,8 @@ export const AuthService = {
       method: 'POST',
       body: { email, password },
     })
-    const user = mapUser(data.user)
-    setAuthToken(data.token)
-    return { user, token: data.token }
+    // Session is carried by the HttpOnly cookie set by the backend.
+    return { user: mapUser(data.user), token: data.token }
   },
 
   async register(
@@ -51,18 +50,12 @@ export const AuthService = {
       method: 'POST',
       body: { email, password, name },
     })
-    const user = mapUser(data.user)
-    setAuthToken(data.token)
-    return { user, token: data.token }
+    return { user: mapUser(data.user), token: data.token }
   },
 
   async logout(): Promise<void> {
-    clearAuthToken()
-    try {
-      await apiRequest('/auth/logout', { method: 'POST' })
-    } catch {
-      // Swallow — best-effort server-side logout
-    }
+    // Backend expires the HttpOnly cookie + bumps token_version.
+    await apiRequest('/auth/logout', { method: 'POST' })
   },
 
   async getCurrentUser(): Promise<User> {
@@ -74,7 +67,6 @@ export const AuthService = {
     const data = await apiRequest<{ token: string }>('/auth/refresh', {
       method: 'POST',
     })
-    setAuthToken(data.token)
     return data.token
   },
 

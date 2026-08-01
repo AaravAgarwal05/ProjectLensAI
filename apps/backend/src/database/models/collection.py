@@ -13,6 +13,7 @@ class Collection(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "collections"
     __allow_unmapped__ = True
 
+    owner_id: Column[str | None] = Column(String(36), nullable=True, index=True)
     name: Column[str] = Column(String, nullable=False, unique=True, index=True)
     description: Column[str | None] = Column(Text, nullable=True)
 

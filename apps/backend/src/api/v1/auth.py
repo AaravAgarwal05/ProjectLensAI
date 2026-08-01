@@ -3,16 +3,21 @@
 All endpoints persist to the database using real password hashing and JWT tokens.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db
 from src.api.rate_limiter import limiter
+from src.config.settings import get_settings
 from src.database.models import User
 
 router = APIRouter()
+
+# HttpOnly cookie that carries the JWT. Client JS can never read it —
+# XSS can't exfiltrate the token. Sent only over HTTPS when COOKIE_SECURE.
+AUTH_COOKIE = "auth_token"
 
 # ──────────────────────────────────────────────
 # Schemas
@@ -90,6 +95,25 @@ def _create_token(user_id: str, token_version: int = 0) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """Persist the JWT in an HttpOnly cookie for the token's lifetime."""
+    settings = get_settings()
+    response.set_cookie(
+        key=AUTH_COOKIE,
+        value=token,
+        max_age=settings.JWT_EXPIRATION_MINUTES * 60,
+        httponly=True,
+        samesite="lax",
+        secure=settings.COOKIE_SECURE,
+        path="/",
+    )
+
+
+def _clear_auth_cookie(response: Response) -> None:
+    """Expire the auth cookie (used on logout)."""
+    response.delete_cookie(key=AUTH_COOKIE, path="/")
+
+
 # ──────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────
@@ -100,12 +124,13 @@ def _create_token(user_id: str, token_version: int = 0) -> str:
 async def register(
     request: Request,
     body: RegisterRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Register a new user account.
 
     Validates uniqueness, hashes the password, inserts into DB,
-    and returns a JWT token + user profile.
+    and returns a JWT token (set as an HttpOnly cookie) + user profile.
     """
     # Validate inputs
     if not body.email or "@" not in body.email:
@@ -133,6 +158,7 @@ async def register(
     await db.refresh(user)
 
     token = _create_token(str(user.id), user.token_version or 0)
+    _set_auth_cookie(response, token)
     return AuthResponse(user=UserOut.from_orm(user), token=token)
 
 
@@ -141,9 +167,10 @@ async def register(
 async def login(
     request: Request,
     body: LoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
-    """Authenticate a user and return a JWT access token."""
+    """Authenticate a user and return a JWT access token (HttpOnly cookie)."""
     result = await db.execute(
         select(User).where(User.email == body.email.strip().lower())
     )
@@ -152,6 +179,7 @@ async def login(
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = _create_token(str(user.id), user.token_version or 0)
+    _set_auth_cookie(response, token)
     return AuthResponse(user=UserOut.from_orm(user), token=token)
 
 
@@ -165,24 +193,28 @@ async def get_me(
 
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh(
+    response: Response,
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Issue a new JWT for the currently authenticated user."""
     token = _create_token(str(current_user.id), current_user.token_version or 0)
+    _set_auth_cookie(response, token)
     return AuthResponse(user=UserOut.from_orm(current_user), token=token)
 
 
 @router.post("/logout")
 async def logout(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Revoke the user's tokens.
+    """Revoke the user's tokens and clear the auth cookie.
 
     Bumps the account's token_version so every previously issued JWT is
-    rejected on the next authenticated request. Clients should also discard
-    the token locally.
+    rejected on the next authenticated request. The HttpOnly cookie is
+    expired server-side, so clients have nothing to discard.
     """
     current_user.token_version = (current_user.token_version or 0) + 1
     await db.commit()
+    _clear_auth_cookie(response)
     return {"message": "Logged out successfully"}

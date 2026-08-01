@@ -1,5 +1,5 @@
 import type { Report, ReportFilters, ReportVersion } from '@/types'
-import { apiRequest, API_BASE, getAuthToken, ApiError } from '@/lib/api'
+import { apiRequest, API_BASE, ApiError } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Raw backend response types (snake_case)
@@ -134,14 +134,11 @@ export const ReportService = {
     if (metadata?.year) formData.append('year', String(metadata.year))
     if (metadata?.tags?.length) formData.append('tags', metadata.tags.join(','))
 
-    // Multipart upload — use raw fetch so the browser sets the Content-Type
-    const token = getAuthToken()
-    const headers: Record<string, string> = {}
-    if (token) headers['Authorization'] = `Bearer ${token}`
-
+    // Multipart upload — use raw fetch so the browser sets the Content-Type.
+    // The auth cookie travels with credentials: "include".
     const res = await fetch(`${API_BASE}/reports`, {
       method: 'POST',
-      headers,
+      credentials: 'include',
       body: formData,
     })
 

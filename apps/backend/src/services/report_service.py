@@ -50,6 +50,7 @@ class ReportService:
         self,
         file: UploadFile,
         title: str,
+        owner_id: str,
         description: str | None = None,
         department: str | None = None,
         author: str | None = None,
@@ -77,6 +78,7 @@ class ReportService:
         storage_path = await self._store_file(file=file, content=content)
 
         report = await self._report_repo.create(
+            owner_id=owner_id,
             title=title,
             description=description,
             department=department,
@@ -116,24 +118,26 @@ class ReportService:
     # Read
     # ------------------------------------------------------------------
 
-    async def get_report(self, report_id: UUID) -> Report | None:
-        """Retrieve a single report by ID with versions eager-loaded."""
-        return await self._report_repo.get_with_versions(report_id)
+    async def get_report(self, report_id: UUID, owner_id: str) -> Report | None:
+        """Retrieve a report by ID — only if the caller owns it."""
+        report = await self._report_repo.get_with_versions(report_id)
+        return self._ensure_owned(report, report_id, owner_id)
 
     async def list_reports(
         self,
+        owner_id: str,
         skip: int = 0,
         limit: int = 20,
         status: str | None = None,
         author: str | None = None,
         search: str | None = None,
     ) -> tuple[Sequence[Report], int]:
-        """Return a paginated, optionally filtered list of reports and the total count.
+        """Return the caller's reports (ownership-scoped), optionally filtered.
 
         Filters are combined with AND semantics.  ``search`` performs a
         case-insensitive match against both ``title`` and ``description``.
         """
-        conditions: list[Any] = []
+        conditions: list[Any] = [Report.owner_id == owner_id]
         if status is not None:
             conditions.append(Report.status == status)
         if author is not None:
@@ -167,10 +171,14 @@ class ReportService:
     async def update_report(
         self,
         report_id: UUID,
+        owner_id: str,
         **updates: Any,
     ) -> Report | None:
-        """Update metadata on an existing report.  Returns ``None`` if not found."""
-        updated = await self._report_repo.update(report_id, **updates)
+        """Update metadata on a report the caller owns."""
+        existing = self._ensure_owned(
+            await self._report_repo.get(report_id), report_id, owner_id
+        )
+        updated = await self._report_repo.update(existing.id, **updates)
         if updated is None:
             return None
         # Reload with versions eager-loaded to avoid MissingGreenlet.
@@ -180,15 +188,15 @@ class ReportService:
     # Delete
     # ------------------------------------------------------------------
 
-    async def delete_report(self, report_id: UUID) -> bool:
-        """Delete a report and its storage files for *all* versions.
+    async def delete_report(self, report_id: UUID, owner_id: str) -> bool:
+        """Delete a report the caller owns, plus its storage files.
 
         Returns ``True`` if the report existed and was deleted, ``False`` if
         no report with that ID was found.
         """
-        report = await self._report_repo.get_with_versions(report_id)
-        if report is None:
-            return False
+        report = self._ensure_owned(
+            await self._report_repo.get_with_versions(report_id), report_id, owner_id
+        )
 
         # Remove stored files for every version so orphaned blobs don't
         # accumulate in the storage backend.
@@ -215,21 +223,18 @@ class ReportService:
     async def upload_new_version(
         self,
         report_id: UUID,
+        owner_id: str,
         file: UploadFile,
     ) -> ReportVersion:
-        """Upload a new file version for an existing report.
+        """Upload a new file version for a report the caller owns.
 
         Validates the file, stores it, and creates a ``ReportVersion`` row
         with an auto-incremented version number.
         """
-        # Verify the report exists first.
-        existing = await self._report_repo.get(report_id)
-        if existing is None:
-            raise ProjectLensError(
-                message=f"Report {report_id} not found",
-                code="report_not_found",
-                status_code=404,
-            )
+        # Verify the report exists and belongs to the caller.
+        self._ensure_owned(
+            await self._report_repo.get(report_id), report_id, owner_id
+        )
 
         self._validate_file(file=file)
 
@@ -260,6 +265,21 @@ class ReportService:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _ensure_owned(report: Report | None, report_id: UUID, owner_id: str) -> Report:
+        """Return the report or 404 — never reveals whether an id exists.
+
+        Raising 404 (not 403) for a foreign report keeps its existence
+        hidden from other tenants.
+        """
+        if report is None or str(report.owner_id) != str(owner_id):
+            raise ProjectLensError(
+                message=f"Report {report_id} not found",
+                code="report_not_found",
+                status_code=404,
+            )
+        return report
 
     async def _store_file(self, file: UploadFile, content: bytes) -> str:
         """Generate a unique storage path and persist the file.

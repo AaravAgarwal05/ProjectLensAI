@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_current_user, get_db
+from src.database.models import User
 from src.services import CollectionService
 
 from .schemas import (
@@ -31,11 +32,13 @@ router = APIRouter()
 async def create_collection(
     body: CreateCollectionRequest,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> CollectionResponse:
-    """Create a new collection."""
+    """Create a new collection owned by the caller."""
     service = CollectionService(session=db)
-    collection = await service.create(name=body.name, description=body.description)
+    collection = await service.create(
+        name=body.name, owner_id=str(user.id), description=body.description
+    )
     return CollectionResponse.model_validate(collection)
 
 
@@ -44,10 +47,13 @@ async def list_collections(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> CollectionListResponse:
-    """List all collections (paginated)."""
+    """List the caller's collections (paginated)."""
     service = CollectionService(session=db)
-    collections, total = await service.list(skip=skip, limit=limit)
+    collections, total = await service.list(
+        owner_id=str(user.id), skip=skip, limit=limit
+    )
     return CollectionListResponse(
         items=[CollectionResponse.model_validate(c) for c in collections],
         total=total,
@@ -60,15 +66,11 @@ async def list_collections(
 async def get_collection(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> CollectionResponse:
-    """Retrieve a single collection by ID."""
+    """Retrieve a single collection by ID — only if the caller owns it."""
     service = CollectionService(session=db)
-    collection = await service.get(collection_id)
-    if collection is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Collection {collection_id} not found",
-        )
+    collection = await service.get(collection_id, owner_id=str(user.id))
     resp = CollectionResponse.model_validate(collection)
     resp.report_count = len(collection.reports)
     return resp
@@ -79,9 +81,9 @@ async def update_collection(
     collection_id: UUID,
     body: UpdateCollectionRequest,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> CollectionResponse:
-    """Partially update collection metadata.
+    """Partially update collection metadata the caller owns.
 
     Only the fields present in the JSON body are applied; omitted fields
     are left unchanged.
@@ -94,12 +96,9 @@ async def update_collection(
         )
 
     service = CollectionService(session=db)
-    collection = await service.update(collection_id, **updates)
-    if collection is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Collection {collection_id} not found",
-        )
+    collection = await service.update(
+        collection_id, owner_id=str(user.id), **updates
+    )
     return CollectionResponse.model_validate(collection)
 
 
@@ -107,11 +106,11 @@ async def update_collection(
 async def delete_collection(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> None:
-    """Delete a collection (does not delete its member reports)."""
+    """Delete a collection the caller owns (does not delete its reports)."""
     service = CollectionService(session=db)
-    deleted = await service.delete(collection_id)
+    deleted = await service.delete(collection_id, owner_id=str(user.id))
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -132,17 +131,11 @@ async def add_report_to_collection(
     collection_id: UUID,
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    """Link a report to a collection (idempotent: no-op if already linked)."""
+    """Link a report to a collection — both must belong to the caller."""
     service = CollectionService(session=db)
-    collection = await service.get(collection_id)
-    if collection is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Collection {collection_id} not found",
-        )
-    await service.add_report(collection_id, report_id)
+    await service.add_report(collection_id, report_id, owner_id=str(user.id))
     return {"message": "Report added to collection"}
 
 
@@ -154,8 +147,10 @@ async def remove_report_from_collection(
     collection_id: UUID,
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> None:
-    """Unlink a report from a collection (idempotent)."""
+    """Unlink a report from a collection the caller owns (idempotent)."""
     service = CollectionService(session=db)
-    await service.remove_report(collection_id, report_id)
+    await service.remove_report(
+        collection_id, report_id, owner_id=str(user.id)
+    )

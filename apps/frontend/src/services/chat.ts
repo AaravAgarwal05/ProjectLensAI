@@ -1,5 +1,5 @@
 import type { ChatSession, ChatMessage, Citation } from '@/types'
-import { apiRequest, API_BASE, getAuthToken, ApiError } from '@/lib/api'
+import { apiRequest, API_BASE, ApiError } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Raw backend response types (snake_case)
@@ -214,7 +214,6 @@ export const ChatService = {
     onChunk: (_chunk: string) => void,
     extra?: { reportIds?: string[]; mode?: string }
   ): Promise<ChatMessage> {
-    const token = getAuthToken()
     const body: Record<string, unknown> = {
       message: content,
       session_id: sessionId,
@@ -222,14 +221,11 @@ export const ChatService = {
     if (extra?.reportIds) body.report_ids = extra.reportIds
     if (extra?.mode) body.mode = extra.mode
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (token) headers['Authorization'] = `Bearer ${token}`
-
+    // Auth cookie travels with credentials: "include" — no Authorization header.
     const res = await fetch(`${API_BASE}/chat/send/stream`, {
+      credentials: 'include',
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
 

@@ -1,6 +1,7 @@
 /**
  * API client for ProjectLens AI backend.
- * Uses fetch directly with auth token management.
+ * Uses fetch with `credentials: "include"` so the HttpOnly auth cookie is
+ * sent automatically — no token is ever stored in localStorage.
  */
 
 export const API_BASE =
@@ -17,22 +18,6 @@ export class ApiError extends Error {
   }
 }
 
-/** Read auth token from localStorage. */
-export function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('auth_token')
-}
-
-/** Persist auth token to localStorage. */
-export function setAuthToken(token: string): void {
-  localStorage.setItem('auth_token', token)
-}
-
-/** Remove auth token from localStorage. */
-export function clearAuthToken(): void {
-  localStorage.removeItem('auth_token')
-}
-
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
@@ -41,13 +26,13 @@ interface ApiOptions {
 
 /**
  * Make an authenticated request to the API.
- * Handles JSON serialisation, auth headers, 401 redirect, and 204 empty responses.
+ * The auth cookie travels with `credentials: "include"`; there is no
+ * Authorization header and nothing to manage client-side.
  */
 export async function apiRequest<T>(
   path: string,
   options: ApiOptions = {}
 ): Promise<T> {
-  const token = getAuthToken()
   const headers: Record<string, string> = { ...options.headers }
 
   // Only set Content-Type for JSON bodies; let the browser handle FormData
@@ -55,10 +40,6 @@ export async function apiRequest<T>(
     typeof FormData !== 'undefined' && options.body instanceof FormData
   if (options.body !== undefined && !isFormData) {
     headers['Content-Type'] = 'application/json'
-  }
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
   }
 
   const body = isFormData
@@ -71,6 +52,7 @@ export async function apiRequest<T>(
     method: options.method ?? 'GET',
     headers,
     body,
+    credentials: 'include',
   })
 
   // 204 No Content — return undefined

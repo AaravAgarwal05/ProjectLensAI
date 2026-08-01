@@ -108,6 +108,7 @@ class TestCreateReport:
         result = await report_service.create_report(
             file=f,
             title="Annual Report",
+            owner_id="owner-1",
             description="Full year review",
             department="Finance",
             author="Jane Doe",
@@ -133,6 +134,7 @@ class TestCreateReport:
 
         # Report was created with correct metadata
         report_service._report_repo.create.assert_awaited_once_with(
+            owner_id="owner-1",
             title="Annual Report",
             description="Full year review",
             department="Finance",
@@ -164,7 +166,7 @@ class TestCreateReport:
         await _patch_repos(report_service)
         f = _mock_file(filename="virus.exe")
         with pytest.raises(ProjectLensError) as exc_info:
-            await report_service.create_report(file=f, title="Bad")
+            await report_service.create_report(file=f, title="Bad", owner_id="owner-1")
         assert exc_info.value.code == "invalid_file_extension"
         # Repository methods should NOT have been called
         report_service._report_repo.create.assert_not_called()  # type: ignore[attr-defined]
@@ -173,7 +175,7 @@ class TestCreateReport:
         await _patch_repos(report_service)
         f = _mock_file(filename="huge.pdf", size=5 * 1024 * 1024)
         with pytest.raises(ProjectLensError) as exc_info:
-            await report_service.create_report(file=f, title="Huge")
+            await report_service.create_report(file=f, title="Huge", owner_id="owner-1")
         assert exc_info.value.code == "file_too_large"
         report_service._report_repo.create.assert_not_called()  # type: ignore[attr-defined]
 
@@ -187,18 +189,31 @@ class TestGetReport:
     """``ReportService.get_report``"""
 
     async def test_returns_report(self, report_service: ReportService) -> None:
-        expected = make_report()
+        expected = make_report(owner_id="owner-1")
         await _patch_repos(report_service)
         report_service._report_repo.get_with_versions.return_value = expected  # type: ignore[attr-defined]
 
-        result = await report_service.get_report(expected.id)
+        result = await report_service.get_report(expected.id, owner_id="owner-1")
         assert result is expected
 
-    async def test_returns_none_when_not_found(self, report_service: ReportService) -> None:
+    async def test_raises_404_when_not_found(self, report_service: ReportService) -> None:
         await _patch_repos(report_service)
         report_service._report_repo.get_with_versions.return_value = None  # type: ignore[attr-defined]
-        result = await report_service.get_report(uuid4())
-        assert result is None
+        with pytest.raises(ProjectLensError) as exc_info:
+            await report_service.get_report(uuid4(), owner_id="owner-1")
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.code == "report_not_found"
+
+    async def test_raises_404_for_foreign_owner(self, report_service: ReportService) -> None:
+        """A report owned by someone else is indistinguishable from missing."""
+        await _patch_repos(report_service)
+        report_service._report_repo.get_with_versions.return_value = make_report(  # type: ignore[attr-defined]
+            owner_id="someone-else"
+        )
+        with pytest.raises(ProjectLensError) as exc_info:
+            await report_service.get_report(uuid4(), owner_id="owner-1")
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.code == "report_not_found"
 
 
 class TestListReports:
@@ -216,7 +231,7 @@ class TestListReports:
         fetch_mock.unique.return_value.scalars.return_value.all.return_value = reports
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
-        result, total = await report_service.list_reports(skip=0, limit=20)
+        result, total = await report_service.list_reports(owner_id="owner-1", skip=0, limit=20)
 
         assert list(result) == reports
         assert total == 2
@@ -229,7 +244,7 @@ class TestListReports:
         fetch_mock.unique.return_value.scalars.return_value.all.return_value = drafted
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
-        result, total = await report_service.list_reports(status="draft")
+        result, total = await report_service.list_reports(owner_id="owner-1", status="draft")
         assert total == 1
         call_stmt = mock_session.execute.call_args_list[0][0][0]
         compiled = str(call_stmt.compile(compile_kwargs={"literal_binds": True}))
@@ -242,7 +257,7 @@ class TestListReports:
         fetch_mock.unique.return_value.scalars.return_value.all.return_value = []
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
-        await report_service.list_reports(author="Dr. Smith")
+        await report_service.list_reports(owner_id="owner-1", author="Dr. Smith")
         call_stmt = mock_session.execute.call_args_list[0][0][0]
         compiled = str(call_stmt.compile(compile_kwargs={"literal_binds": True}))
         assert "Dr. Smith" in compiled
@@ -254,7 +269,7 @@ class TestListReports:
         fetch_mock.unique.return_value.scalars.return_value.all.return_value = []
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
-        await report_service.list_reports(search="quarterly")
+        await report_service.list_reports(owner_id="owner-1", search="quarterly")
         call_stmt = mock_session.execute.call_args_list[0][0][0]
         compiled = str(call_stmt.compile(compile_kwargs={"literal_binds": True}))
         assert "%quarterly%" in compiled
@@ -266,7 +281,9 @@ class TestListReports:
         fetch_mock.unique.return_value.scalars.return_value.all.return_value = []
         mock_session.execute.side_effect = [count_mock, fetch_mock]
 
-        await report_service.list_reports(status="uploaded", author="Alice", search="Q4")
+        await report_service.list_reports(
+            owner_id="owner-1", status="uploaded", author="Alice", search="Q4"
+        )
         # Verify that all three conditions were combined (AND)
         call_stmt = mock_session.execute.call_args_list[0][0][0]
         compiled = str(call_stmt.compile(compile_kwargs={"literal_binds": True}))
@@ -284,22 +301,25 @@ class TestUpdateReport:
     """``ReportService.update_report``"""
 
     async def test_updates_fields(self, report_service: ReportService) -> None:
-        updated = make_report(title="New Title")
+        updated = make_report(owner_id="owner-1", title="New Title")
         await _patch_repos(report_service)
+        report_service._report_repo.get.return_value = updated  # type: ignore[attr-defined]
         report_service._report_repo.update.return_value = updated  # type: ignore[attr-defined]
         report_service._report_repo.get_with_versions.return_value = updated  # type: ignore[attr-defined]
 
-        result = await report_service.update_report(updated.id, title="New Title")
+        result = await report_service.update_report(updated.id, owner_id="owner-1", title="New Title")
         assert result is updated
         report_service._report_repo.update.assert_awaited_once_with(  # type: ignore[attr-defined]
             updated.id, title="New Title"
         )
 
-    async def test_returns_none_when_not_found(self, report_service: ReportService) -> None:
+    async def test_raises_404_when_not_found(self, report_service: ReportService) -> None:
         await _patch_repos(report_service)
-        report_service._report_repo.update.return_value = None  # type: ignore[attr-defined]
-        result = await report_service.update_report(uuid4(), title="Nope")
-        assert result is None
+        report_service._report_repo.get.return_value = None  # type: ignore[attr-defined]
+        with pytest.raises(ProjectLensError) as exc_info:
+            await report_service.update_report(uuid4(), owner_id="owner-1", title="Nope")
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.code == "report_not_found"
 
 
 # ===================================================================
@@ -331,7 +351,7 @@ class TestDeleteReport:
         report_service._report_repo.get_with_versions.return_value = report  # type: ignore[attr-defined]
         report_service._report_repo.delete.return_value = True  # type: ignore[attr-defined]
 
-        result = await report_service.delete_report(report_id)
+        result = await report_service.delete_report(report_id, owner_id="owner-1")
         assert result is True
 
         # Storage delete called for each version
@@ -361,15 +381,30 @@ class TestDeleteReport:
         report_service._report_repo.delete.return_value = True  # type: ignore[attr-defined]
         mock_storage.delete.side_effect = Exception("Storage unavailable")
 
-        result = await report_service.delete_report(report_id)
+        result = await report_service.delete_report(report_id, owner_id="owner-1")
         assert result is True
         report_service._report_repo.delete.assert_awaited_once()  # type: ignore[attr-defined]
 
-    async def test_returns_false_when_report_missing(self, report_service: ReportService) -> None:
+    async def test_raises_404_when_report_missing(self, report_service: ReportService) -> None:
         await _patch_repos(report_service)
         report_service._report_repo.get_with_versions.return_value = None  # type: ignore[attr-defined]
-        result = await report_service.delete_report(uuid4())
-        assert result is False
+        with pytest.raises(ProjectLensError) as exc_info:
+            await report_service.delete_report(uuid4(), owner_id="owner-1")
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.code == "report_not_found"
+        report_service._report_repo.delete.assert_not_called()  # type: ignore[attr-defined]
+
+    async def test_raises_404_for_foreign_owner(self, report_service: ReportService) -> None:
+        """Deleting a report owned by someone else 404s and touches no storage."""
+        report_id = uuid4()
+        await _patch_repos(report_service)
+        report_service._report_repo.get_with_versions.return_value = make_report(  # type: ignore[attr-defined]
+            id=report_id, owner_id="someone-else"
+        )
+        with pytest.raises(ProjectLensError) as exc_info:
+            await report_service.delete_report(report_id, owner_id="owner-1")
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.code == "report_not_found"
         report_service._report_repo.delete.assert_not_called()  # type: ignore[attr-defined]
 
 
@@ -397,7 +432,7 @@ class TestUploadNewVersion:
         report_service._version_repo.create.return_value = expected_version  # type: ignore[attr-defined]
 
         f = _mock_file(filename="v2.pdf", content=b"v2 content")
-        result = await report_service.upload_new_version(report_id, file=f)
+        result = await report_service.upload_new_version(report_id, owner_id="owner-1", file=f)
 
         assert result is expected_version
         assert result.version_number == 2
@@ -416,7 +451,7 @@ class TestUploadNewVersion:
 
         f = _mock_file()
         with pytest.raises(ProjectLensError) as exc_info:
-            await report_service.upload_new_version(uuid4(), file=f)
+            await report_service.upload_new_version(uuid4(), owner_id="owner-1", file=f)
         assert exc_info.value.status_code == 404
         assert exc_info.value.code == "report_not_found"
 
@@ -427,5 +462,5 @@ class TestUploadNewVersion:
 
         f = _mock_file(filename="evil.exe")
         with pytest.raises(ProjectLensError) as exc_info:
-            await report_service.upload_new_version(report_id, file=f)
+            await report_service.upload_new_version(report_id, owner_id="owner-1", file=f)
         assert exc_info.value.code == "invalid_file_extension"

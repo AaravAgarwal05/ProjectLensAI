@@ -38,6 +38,7 @@ def make_report(**overrides: object) -> Report:
     now = datetime.now(timezone.utc)
     defaults: dict[str, object] = {
         "id": uuid4(),
+        "owner_id": "owner-1",
         "title": "Test Report",
         "description": "A test report description",
         "department": "Engineering",
