@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Icon } from '@/components/shared/icon'
 import { ChatService } from '@/services/chat'
+import { useToast } from '@/providers/toast-provider'
 import type { ChatSession, ChatMessage } from '@/types/chat'
 
 /* ─── animation variants ─── */
@@ -28,6 +29,107 @@ const sidebarVariants = {
 const contextPanelVariants = {
   hidden: { opacity: 0, x: 20 },
   show: { opacity: 1, x: 0, transition: { duration: 0.5, delay: 0.15, ease: 'easeOut' as const } },
+}
+
+/* ─── light markdown renderer (no dep) ─── */
+
+/** Normalize model-emitted HTML into markdown before tokenizing. */
+function normalizeHtml(text: string): string {
+  return text
+    .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+    .replace(/<b>(.*?)<\/b>/g, '**$1**')
+    .replace(/<em>(.*?)<\/em>/g, '*$1*')
+    .replace(/<i>(.*?)<\/i>/g, '*$1*')
+    .replace(/<code>(.*?)<\/code>/g, '`$1`')
+}
+
+function inline(text: string): React.ReactNode[] {
+  const parts = normalizeHtml(text).split(
+    /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\(https?:[^)]+\)|\[Chunk \d+\])/g
+  )
+  const nodes: React.ReactNode[] = []
+  parts.forEach((part, i) => {
+    if (!part) return
+    if (/^\*\*([^*]+)\*\*$/.test(part)) {
+      nodes.push(<strong key={i}>{part.slice(2, -2)}</strong>)
+    } else if (/^\*([^*]+)\*$/.test(part)) {
+      nodes.push(<em key={i}>{part.slice(1, -1)}</em>)
+    } else if (/^`([^`]+)`$/.test(part)) {
+      nodes.push(
+        <code key={i} className="rounded bg-surface-container-high px-1 py-0.5 font-code-sm text-primary">
+          {part.slice(1, -1)}
+        </code>
+      )
+    } else if (/^\[([^\]]+)\]\((https?:[^)]+)\)$/.test(part)) {
+      const m = part.match(/^\[([^\]]+)\]\((https?:[^)]+)\)$/)
+      if (m) {
+        nodes.push(
+          <a key={i} href={m[2]} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+            {m[1]}
+          </a>
+        )
+      }
+    } else if (/^\[Chunk \d+\]$/.test(part)) {
+      nodes.push(
+        <span
+          key={i}
+          title="Cited source chunk"
+          className="mx-0.5 inline-flex items-center rounded bg-primary-container/20 px-1.5 py-0.5 font-label-md text-primary"
+        >
+          {part}
+        </span>
+      )
+    } else {
+      nodes.push(part)
+    }
+  })
+  return nodes
+}
+
+function Markdown({ content }: { content: string }) {
+  const blocks: React.ReactNode[] = []
+  const lines = content.split('\n')
+  let code: string[] = []
+
+  const flushCode = (key: number) => {
+    if (!code.length) return
+    blocks.push(
+      <pre key={key} className="overflow-x-auto rounded-lg border border-outline-variant bg-surface-container-lowest p-md font-code-sm text-on-surface">
+        <code>{code.join('\n')}</code>
+      </pre>
+    )
+    code = []
+  }
+
+  lines.forEach((line, i) => {
+    if (line.startsWith('```')) {
+      if (code.length || line.trim() === '```') {
+        flushCode(i)
+      } else {
+        code = []
+      }
+      return
+    }
+    if (line.startsWith('# ')) {
+      flushCode(i); blocks.push(<h3 key={i} className="mt-lg font-headline-md text-on-surface first:mt-0">{inline(line.slice(2))}</h3>); return
+    }
+    if (line.startsWith('## ')) {
+      flushCode(i); blocks.push(<h4 key={i} className="mt-lg font-headline-md font-bold text-on-surface first:mt-0">{inline(line.slice(3))}</h4>); return
+    }
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      flushCode(i); blocks.push(<li key={i} className="ml-lg list-disc font-body-md text-on-surface">{inline(line.slice(2))}</li>); return
+    }
+    if (/^\d+\.\s/.test(line)) {
+      flushCode(i); blocks.push(<li key={i} className="ml-lg list-decimal font-body-md text-on-surface">{inline(line.replace(/^\d+\.\s/, ''))}</li>); return
+    }
+    if (!line.trim()) {
+      flushCode(i); return
+    }
+    blocks.push(<p key={i} className="font-body-md leading-relaxed text-on-surface">{inline(line)}</p>)
+  })
+  flushCode(lines.length)
+
+  return <div className="space-y-1">{blocks}</div>
 }
 
 /* ─── Source Card sub-component ─── */
@@ -64,6 +166,8 @@ function SourceCard({
 export default function ChatSessionPage() {
   const params = useParams()
   const sessionId = params.sessionId as string
+  const router = useRouter()
+  const { addToast } = useToast()
 
   const [session, setSession] = useState<ChatSession | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -146,6 +250,26 @@ export default function ChatSessionPage() {
     }
   }, [input, sending, sessionId, session])
 
+  const handleNewChat = useCallback(async () => {
+    try {
+      const s = await ChatService.createSession({ title: 'New Chat', mode: 'single' })
+      router.push(`/chat/${s.id}`)
+    } catch {
+      addToast('Could not start a new chat. Try again.', 'error')
+    }
+  }, [router, addToast])
+
+  const handleDeleteSession = useCallback(async (id: string, navigateHome = false) => {
+    try {
+      await ChatService.deleteSession(id)
+      setSessionsList((prev) => prev.filter((s) => s.id !== id))
+      addToast('Chat deleted', 'success')
+      if (navigateHome || id === sessionId) router.push('/chat')
+    } catch {
+      addToast('Could not delete chat. Try again.', 'error')
+    }
+  }, [sessionId, router, addToast])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -159,11 +283,42 @@ export default function ChatSessionPage() {
   /* ─── Loading ─── */
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-md">
-          <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="font-body-md text-on-surface-variant">Loading chat…</p>
-        </div>
+      <div className="flex h-screen bg-background text-on-surface">
+        {/* Sidebar skeleton */}
+        <aside className="hidden w-[260px] shrink-0 flex-col border-r border-outline-variant bg-surface-container-lowest p-md md:flex">
+          <div className="mb-lg flex items-center gap-sm">
+            <div className="h-8 w-8 animate-pulse rounded bg-surface-container-high" />
+            <div className="h-5 w-32 animate-pulse rounded bg-surface-container-high" />
+          </div>
+          <div className="h-10 w-full animate-pulse rounded bg-surface-container-high" />
+          <div className="mt-lg space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-8 w-full animate-pulse rounded bg-surface-container-high/60" />
+            ))}
+          </div>
+        </aside>
+
+        {/* Main skeleton */}
+        <main className="flex flex-1 flex-col">
+          <div className="flex h-16 items-center justify-between border-b border-outline-variant px-xl">
+            <div className="h-5 w-48 animate-pulse rounded bg-surface-container-high" />
+            <div className="h-8 w-20 animate-pulse rounded bg-surface-container-high" />
+          </div>
+          <div className="flex-1 space-y-xl px-xl py-lg">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={`flex gap-lg ${i % 2 ? 'justify-end' : ''}`}>
+                <div className={`h-8 w-8 shrink-0 animate-pulse rounded ${i % 2 ? '' : 'bg-primary/40'}`} />
+                <div className={`space-y-2 ${i % 2 ? 'w-2/3' : 'w-1/2'}`}>
+                  <div className="h-4 w-full animate-pulse rounded bg-surface-container-high" />
+                  <div className="h-4 w-4/5 animate-pulse rounded bg-surface-container-high" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-xl pb-lg">
+            <div className="h-[80px] animate-pulse rounded-xl bg-surface-container-high" />
+          </div>
+        </main>
       </div>
     )
   }
@@ -206,28 +361,30 @@ export default function ChatSessionPage() {
         variants={sidebarVariants}
         initial="hidden"
         animate="show"
-        className="fixed left-0 top-0 z-50 flex h-full w-[260px] flex-col border-r border-outline-variant bg-surface-container-lowest"
+        className="fixed left-0 top-0 z-50 hidden h-full w-[260px] flex-col border-r border-outline-variant bg-surface-container-lowest md:flex"
       >
         {/* Logo */}
         <div className="flex items-center gap-sm p-md pb-lg">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-primary">
-            <Icon fill className="text-on-primary" size="20px">lens</Icon>
-          </div>
+          <img
+            src="/Logo.png"
+            alt="ProjectLens AI"
+            className="h-8 w-8 rounded-full object-cover"
+          />
           <div>
-            <h1 className="font-display text-headline-md font-bold leading-none text-primary">ProjectLens</h1>
+            <h1 className="font-logo text-headline-md font-semibold leading-none text-primary">ProjectLens</h1>
             <p className="mt-1 font-label-md text-[10px] uppercase tracking-widest text-outline">Precision Intelligence</p>
           </div>
         </div>
 
         {/* New Chat */}
         <div className="px-md pb-md">
-          <Link
-            href="/chat"
+          <button
+            onClick={handleNewChat}
             className="flex w-full items-center justify-center gap-sm rounded bg-primary-container py-sm font-body-md font-bold text-on-primary-container transition-opacity hover:opacity-90"
           >
             <Icon size="18px">add</Icon>
             New Chat
-          </Link>
+          </button>
         </div>
 
         {/* Chat History */}
@@ -237,18 +394,29 @@ export default function ChatSessionPage() {
           )}
           <div className="space-y-[2px]">
             {sessionsList.map((s) => (
-              <Link
+              <div
                 key={s.id}
-                href={`/chat/${s.id}`}
-                className={`flex items-center gap-sm rounded px-sm py-sm transition-colors ${
+                className={`group flex items-center gap-sm rounded px-sm py-sm transition-colors ${
                   s.id === sessionId
                     ? 'border-r-2 border-primary bg-primary-container/10 font-bold text-primary'
                     : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
                 }`}
               >
-                <Icon size="18px" fill={s.id === sessionId}>chat_bubble</Icon>
-                <span className="truncate font-body-md">{s.title}</span>
-              </Link>
+                <Link
+                  href={`/chat/${s.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-sm"
+                >
+                  <Icon size="18px" fill={s.id === sessionId}>chat_bubble</Icon>
+                  <span className="truncate font-body-md">{s.title}</span>
+                </Link>
+                <button
+                  onClick={() => handleDeleteSession(s.id)}
+                  className="shrink-0 rounded p-1 text-on-surface-variant opacity-0 transition-all hover:bg-error/10 hover:text-error group-hover:opacity-100"
+                  title="Delete chat"
+                >
+                  <Icon size="14px">close</Icon>
+                </button>
+              </div>
             ))}
           </div>
         </nav>
@@ -266,7 +434,7 @@ export default function ChatSessionPage() {
       </motion.aside>
 
       {/* ─── Main Chat Area ─── */}
-      <main className="ml-[260px] mr-[320px] flex flex-1 flex-col h-screen">
+      <main className="flex flex-1 flex-col h-screen ml-0 mr-0 md:ml-[260px] lg:mr-[320px]">
         {/* Top Navbar */}
         <motion.header
           initial={{ opacity: 0 }}
@@ -285,8 +453,21 @@ export default function ChatSessionPage() {
           </div>
 
           <div className="flex items-center gap-md">
-            <button className="text-on-surface-variant transition-colors hover:text-on-surface">
-              <Icon>notifications</Icon>
+            <Link
+              href="/chat"
+              className="flex items-center gap-xs rounded px-sm py-1.5 font-body-md text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+              title="Back to chat list"
+            >
+              <Icon size="18px">arrow_back</Icon>
+              <span className="hidden sm:inline">All chats</span>
+            </Link>
+            <button
+              onClick={() => handleDeleteSession(sessionId, true)}
+              className="flex items-center gap-xs rounded px-sm py-1.5 font-body-md text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error"
+              title="Delete this chat"
+            >
+              <Icon size="18px">delete</Icon>
+              <span className="hidden sm:inline">Delete</span>
             </button>
           </div>
         </motion.header>
@@ -327,9 +508,7 @@ export default function ChatSessionPage() {
                   </Icon>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-body-md leading-relaxed text-on-surface whitespace-pre-wrap">
-                    {msg.content}
-                  </p>
+                  <Markdown content={msg.content} />
 
                   {/* Citation chips */}
                   {msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
@@ -349,8 +528,8 @@ export default function ChatSessionPage() {
               </motion.div>
             ))}
 
-            {/* Typing indicator */}
-            {sending && (
+            {/* Typing indicator — hidden once streamed content starts */}
+            {sending && !messages.some((m) => m.id.startsWith('stream-') && m.content) && (
               <motion.div variants={messageVariants} className="flex gap-lg">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-primary shadow-[0_0_12px_rgba(192,193,255,0.15)]">
                   <Icon fill className="text-on-primary" size="18px">smart_toy</Icon>
@@ -432,7 +611,7 @@ export default function ChatSessionPage() {
         variants={contextPanelVariants}
         initial="hidden"
         animate="show"
-        className="fixed right-0 top-0 z-50 flex h-full w-[320px] flex-col border-l border-outline-variant bg-surface-container-lowest"
+        className="fixed right-0 top-0 z-50 hidden h-full w-[320px] flex-col border-l border-outline-variant bg-surface-container-lowest lg:flex"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-outline-variant px-md py-md">

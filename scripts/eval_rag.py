@@ -34,6 +34,11 @@ import httpx
 DEFAULT_BASE_URL = "http://localhost:8000"
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "llama3.2:1b"
+
+# OpenCode Zen (optional judge provider — set OPENCODE_ZEN_API_KEY env var to use)
+OPENCODE_ZEN_BASE_URL = "https://opencode.ai/zen/v1"
+OPENCODE_ZEN_MODEL = "deepseek-v4-flash-free"
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_DATA_DIR = PROJECT_ROOT / "test_data" / "rag_eval"
 TEST_DATA_DIR = PROJECT_ROOT / "test_data"
@@ -46,54 +51,97 @@ async def _llm_judge(
     system_prompt: str,
     user_prompt: str,
     client: httpx.AsyncClient,
+    provider: str = "ollama",
 ) -> float:
-    """Call Ollama with a judge prompt, return YES=1.0 / NO=0.0.
+    """Call an LLM judge, return YES=1.0 / NO=0.0.
 
-    Handles single-number output too (for other judge tasks).
+    Supports ``ollama`` (default) and ``opencode_zen`` providers.
     """
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "stream": False,
-        "options": {"temperature": 0.0},
-    }
-    try:
-        resp = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=30.0)
-        if resp.status_code != 200:
+    if provider == "opencode_zen":
+        api_key = os.environ.get("OPENCODE_ZEN_API_KEY", "")
+        if not api_key:
             logger = logging.getLogger(__name__)
-            logger.warning("Ollama judge returned %d: %s", resp.status_code, resp.text[:200])
+            logger.warning("OPENCODE_ZEN_API_KEY not set, falling back to 0.0")
             return 0.0
-        body = resp.json()
-        content = body.get("message", {}).get("content", "").strip().upper()
-        # Binary YES/NO
-        if content.startswith("YES"):
-            return 1.0
-        if content.startswith("NO"):
+        payload = {
+            "model": OPENCODE_ZEN_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.0,
+            "max_tokens": 64,
+            "stream": False,
+        }
+        # DeepSeek reasoning models use high token budget for reasoning
+        payload["max_tokens"] = 1024
+        try:
+            resp = await client.post(
+                f"{OPENCODE_ZEN_BASE_URL}/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=60.0,
+            )
+            if resp.status_code != 200:
+                logger = logging.getLogger(__name__)
+                logger.warning("Zen judge returned %d: %s", resp.status_code, resp.text[:200])
+                return 0.0
+            body = resp.json()
+            msg = body.get("choices", [{}])[0].get("message", {})
+            # Reasoning models (DeepSeek) emit the clean YES/NO in `content`;
+            # `reasoning_content` holds the reasoning trace (prose, never
+            # starts with YES/NO). Read content first, fall back only if empty.
+            content = (msg.get("content") or msg.get("reasoning_content") or "").strip().upper()
+        except Exception as exc:
+            logger = logging.getLogger(__name__)
+            logger.warning("Zen judge failed: %s", exc)
             return 0.0
-        # Numeric score fallback
-        match = re.search(r"([01]\.?\d*)", content)
-        score = float(match.group(1)) if match else 0.0
-        return max(0.0, min(1.0, score))
-    except Exception as exc:
-        logger = logging.getLogger(__name__)
-        logger.warning("Ollama judge failed: %s", exc)
+    else:
+        # Ollama
+        payload = {
+            "model": OLLAMA_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "stream": False,
+            "options": {"temperature": 0.0},
+        }
+        try:
+            resp = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload, timeout=30.0)
+            if resp.status_code != 200:
+                logger = logging.getLogger(__name__)
+                logger.warning("Ollama judge returned %d: %s", resp.status_code, resp.text[:200])
+                return 0.0
+            body = resp.json()
+            content = body.get("message", {}).get("content", "").strip().upper()
+        except Exception as exc:
+            logger = logging.getLogger(__name__)
+            logger.warning("Ollama judge failed: %s", exc)
+            return 0.0
+
+    # Parse: YES=1.0 / NO=0.0 / numeric fallback
+    if content.startswith("YES"):
+        return 1.0
+    if content.startswith("NO"):
         return 0.0
+    match = re.search(r"([01]\.?\d*)", content)
+    score = float(match.group(1)) if match else 0.0
+    return max(0.0, min(1.0, score))
 
 
 async def _llm_faithfulness(
     answer: str,
     chunks: list[dict],
     client: httpx.AsyncClient,
+    provider: str = "ollama",
 ) -> float:
     """Judge answer faithfulness via LLM (YES/NO → 1.0/0.0)."""
     if not chunks:
         return 0.0
     chunk_text = "\n".join(
-        f"[{i + 1}] {c.get('content', '')[:600]}"
-        for i, c in enumerate(chunks[:3])
+        f"[{i + 1}] {c.get('content', '')[:8000]}"
+        for i, c in enumerate(chunks[:5])
     )
     system = (
         "You are a faithfulness evaluator. Answer only YES or NO. "
@@ -101,13 +149,14 @@ async def _llm_faithfulness(
         "NO = any claim is not supported or contradicts the excerpts."
     )
     user = f"Excerpts:\n{chunk_text}\n\nAnswer:\n{answer}\n\nIs every claim in the answer supported by the excerpts? Answer YES or NO:"
-    return await _llm_judge(system, user, client)
+    return await _llm_judge(system, user, client, provider=provider)
 
 
 async def _llm_answer_relevance(
     answer: str,
     query: str,
     client: httpx.AsyncClient,
+    provider: str = "ollama",
 ) -> float:
     """Judge answer relevance via LLM (YES/NO → 1.0/0.0)."""
     system = (
@@ -116,7 +165,7 @@ async def _llm_answer_relevance(
         "NO = the answer is irrelevant or evades the question."
     )
     user = f"Question: {query}\n\nAnswer: {answer}\n\nDoes the answer meaningfully address the question? Answer YES or NO:"
-    return await _llm_judge(system, user, client)
+    return await _llm_judge(system, user, client, provider=provider)
 
 
 @functools.lru_cache(maxsize=128)
@@ -268,6 +317,7 @@ async def evaluate(
     report_ids: list[str] | None = None,
     upload: bool = False,
     token: str | None = None,
+    judge_provider: str = "ollama",
 ) -> dict[str, Any]:
     """Run evaluation against ground-truth dataset."""
 
@@ -366,8 +416,8 @@ async def evaluate(
                     ans = result.get("answer", "")
                     citations = result.get("citations", [])
 
-                    faith = await _llm_faithfulness(ans, citations, ollama_client)
-                    relevance = await _llm_answer_relevance(ans, q["query"], ollama_client)
+                    faith = await _llm_faithfulness(ans, citations, ollama_client, provider=judge_provider)
+                    relevance = await _llm_answer_relevance(ans, q["query"], ollama_client, provider=judge_provider)
                     citation_prec = _citation_precision(citations)
 
                     result["faithfulness"] = round(faith, 3)
@@ -485,8 +535,7 @@ async def evaluate(
   Latency: p50={p50_lat:.0f}ms  p95={p95_lat:.0f}ms
 """)
 
-        # Save detailed results
-        out_path = Path.cwd() / "rag_eval_results.json"
+        # Build results payload (persisted via /api/v1/eval/runs, no local file)
         dump = {
             "overall": round(overall, 1),
             "faithfulness_avg": round(avg_faith, 3),
@@ -510,9 +559,43 @@ async def evaluate(
             r.pop("retrieved_chunk_ids", None)
             r.pop("chunk_relevance_scores", None)
 
-        with open(out_path, "w") as f:
-            json.dump(dump, f, indent=2)
-        print(f"  Detailed results saved to: {out_path}")
+        # Persist run to the backend (best-effort — warn on failure, never fatal)
+        if token:
+            payload = {
+                "judge_provider": judge_provider,
+                "judge_model": OPENCODE_ZEN_MODEL if judge_provider == "opencode_zen" else OLLAMA_MODEL,
+                "llm_model": os.environ.get("RAG_LLM_MODEL") or None,
+                "embedding_model": "nomic-embed-text",
+                "retrieval_top_k": 25,
+                "mmr_lambda": 0.4,
+                "prompt_version": "v2",
+                "overall": round(overall, 1),
+                "metrics": {
+                    "faithfulness": round(avg_faith, 3),
+                    "relevance": round(avg_rel, 3),
+                    "citation_precision": round(avg_cite, 3),
+                    "latency_p50_ms": round(p50_lat, 0),
+                    "latency_p95_ms": round(p95_lat, 0),
+                    **dump["retrieval_metrics"],
+                },
+                "results": dump["results"],
+            }
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(
+                        f"{base_url}/api/v1/eval/runs",
+                        json=payload,
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                if resp.status_code in (200, 201):
+                    run_id = resp.json().get("id", "?")
+                    print(f"  Eval run persisted: run_id={run_id}")
+                else:
+                    print(f"  ⚠  Failed to persist eval run ({resp.status_code}): {resp.text[:200]}")
+            except Exception as exc:
+                print(f"  ⚠  Failed to persist eval run: {exc}")
+        else:
+            print("  ⚠  No auth token — skipped persisting eval run. Pass --token to upload.")
 
         return {
             "overall": overall,
@@ -537,6 +620,12 @@ def main() -> None:
     parser.add_argument("--report-ids", help="Comma-separated report UUIDs to test against")
     parser.add_argument("--upload", action="store_true", help="Upload test PDFs before eval")
     parser.add_argument("--token", help="Auth token (default: /tmp/token.txt)")
+    parser.add_argument(
+        "--judge-provider",
+        default=os.environ.get("JUDGE_PROVIDER", "ollama"),
+        choices=["ollama", "opencode_zen"],
+        help="LLM provider for evaluation scoring (default: ollama). Set OPENCODE_ZEN_API_KEY to use opencode_zen.",
+    )
     args = parser.parse_args()
 
     report_ids = args.report_ids.split(",") if args.report_ids else None
@@ -545,6 +634,7 @@ def main() -> None:
         report_ids=report_ids,
         upload=args.upload,
         token=args.token or None,
+        judge_provider=args.judge_provider,
     ))
 
 

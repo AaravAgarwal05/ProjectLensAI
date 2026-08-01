@@ -21,34 +21,34 @@ interface PreferencesResponse {
 
 export const DEFAULT_PREFERENCES: ProcessingPreferences = {
   chunking_strategy: 'heading_aware',
-  llm_provider: 'ollama',
+  llm_provider: 'opencode_zen',
   retrieval_strategy: 'hybrid',
   embedding_provider: 'ollama',
 }
 
-// ─── Human-friendly labels ───────────────────────────────────────────────────
+// ─── Options + descriptions (mirrored from backend capabilities) ─────────────
 
 export const CHUNKING_OPTIONS = [
-  { value: 'fixed', label: 'Standard', description: 'Fixed-size chunks — fast, uniform' },
-  { value: 'heading_aware', label: 'Precise', description: 'Section-aware — respects document structure' },
-  { value: 'recursive', label: 'Deep', description: 'Recursive splitting — detailed, context-aware' },
+  { value: 'heading_aware', label: 'Heading-aware', description: 'Preserves document section hierarchy — default' },
+  { value: 'recursive', label: 'Recursive', description: 'Recursively splits long sections at paragraph boundaries' },
+  { value: 'fixed', label: 'Fixed-size', description: 'Uniform fixed-size chunks, with overlap' },
 ]
 
 export const LLM_OPTIONS = [
-  { value: 'ollama', label: 'Ollama', description: 'Local LLM — fast, private' },
-  { value: 'claude', label: 'Claude', description: 'Anthropic Claude — smart, nuanced' },
-  { value: 'gpt', label: 'GPT', description: 'OpenAI GPT — powerful, versatile' },
+  { value: 'opencode_zen', label: 'OpenCode Zen', description: 'DeepSeek v4 Flash (free) — default' },
+  { value: 'google', label: 'Google Gemini', description: 'Gemini 2.5 Flash — cloud LLM' },
+  { value: 'ollama', label: 'Ollama', description: 'Local LLM — private, offline' },
 ]
 
 export const RETRIEVAL_OPTIONS = [
-  { value: 'dense', label: 'Fast', description: 'Dense vector search — quick results' },
-  { value: 'hybrid', label: 'Balanced', description: 'Hybrid search — good accuracy & speed' },
-  { value: 'multi_query', label: 'Deep', description: 'Multi-query — thorough, best accuracy' },
+  { value: 'hybrid', label: 'Hybrid', description: 'Vector + BM25 + reranking — default' },
+  { value: 'dense', label: 'Dense', description: 'Vector similarity only — fastest' },
+  { value: 'multi_query', label: 'Multi-query', description: 'Expands query into variants — broadest recall' },
 ]
 
 export const EMBEDDING_OPTIONS = [
-  { value: 'sentence_transformer', label: 'Local', description: 'On-device embeddings — private, no API key needed' },
-  { value: 'ollama', label: 'Cloud', description: 'Remote embeddings — via Ollama server' },
+  { value: 'ollama', label: 'Ollama', description: 'nomic-embed-text via Ollama — default' },
+  { value: 'sentence_transformer', label: 'Sentence Transformers', description: 'On-device embeddings — no external server' },
 ]
 
 export const SettingsService = {

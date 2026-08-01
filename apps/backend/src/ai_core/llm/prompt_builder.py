@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from src.ai_core.context.models import LLMContext
@@ -56,6 +57,10 @@ class PromptBuilder:
             top_p = overrides.get("top_p", top_p)
             model_name = overrides.get("model_name", model_name)
 
+        prompt_hash = hashlib.sha256(
+            f"{system_prompt}\n{user_prompt}".encode()
+        ).hexdigest()[:16]
+
         return LLMRequest(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -64,7 +69,12 @@ class PromptBuilder:
             top_p=top_p,
             max_tokens=max_tokens,
             model_name=model_name,
-            metadata={"citations": citations, "num_chunks": len(ctx.chunks)},
+            metadata={
+                "citations": citations,
+                "num_chunks": len(ctx.chunks),
+                "prompt_version": self._config.prompt_version,
+                "prompt_hash": prompt_hash,
+            },
         )
 
     # ------------------------------------------------------------------

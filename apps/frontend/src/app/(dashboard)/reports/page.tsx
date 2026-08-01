@@ -7,6 +7,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
 import { ReportService } from '@/services/reports'
 import { ChatService } from '@/services/chat'
+import { useToast } from '@/providers/toast-provider'
 import type { Report, ReportStatus } from '@/types'
 
 /* ─── animation helpers ─── */
@@ -98,7 +99,33 @@ export default function ReportsPage() {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const allSelected = reports.length > 0 && reports.every((r) => selected.has(r.id))
+  const someSelected = selected.size > 0
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allSelected) reports.forEach((r) => next.delete(r.id))
+      else reports.forEach((r) => next.add(r.id))
+      return next
+    })
+  }, [allSelected, reports])
+
+  const clearSelection = useCallback(() => setSelected(new Set()), [])
+
   const router = useRouter()
+  const { addToast, confirmToast } = useToast()
 
   const fetchReports = useCallback(async () => {
     setLoading(true)
@@ -163,33 +190,57 @@ export default function ReportsPage() {
     fetchReports()
   }, [fetchReports])
 
+  // Drop selection when the list refetches (page/tab/filter change)
+  useEffect(() => {
+    setSelected(new Set())
+  }, [page, activeTab, deptFilter])
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this report permanently?')) return
-    try {
-      await ReportService.delete(id)
-      fetchReports()
-    } catch {
-      // swallow
-    }
+    confirmToast('Delete this report permanently?', async () => {
+      try {
+        await ReportService.delete(id)
+        addToast('Report deleted', 'success')
+        fetchReports()
+      } catch {
+        addToast('Could not delete report. Try again.', 'error')
+      }
+    })
+  }
+
+  const handleBulkDelete = () => {
+    const ids = Array.from(selected)
+    confirmToast(
+      `Delete ${ids.length} ${ids.length === 1 ? 'report' : 'reports'} permanently?`,
+      async () => {
+        try {
+          await ReportService.deleteMany(ids)
+          addToast(`${ids.length} ${ids.length === 1 ? 'report' : 'reports'} deleted`, 'success')
+          clearSelection()
+          fetchReports()
+        } catch {
+          addToast('Could not delete reports. Try again.', 'error')
+        }
+      }
+    )
   }
 
   const totalPages = Math.ceil(total / pageSize)
 
-  const handleOpenChat = useCallback(async (reportId: string, reportTitle: string) => {
+  const handleOpenChat = useCallback(async (reportId: string, reportTitle: string, mode: 'single' | 'comparison' = 'single') => {
     try {
       const session = await ChatService.createSession({
         title: reportTitle,
         reportIds: [reportId],
-        mode: 'single',
+        mode,
       })
       router.push(`/chat/${session.id}`)
     } catch {
-      alert('Failed to create chat session. Please try again.')
+      addToast('Failed to create chat session. Please try again.', 'error')
     }
-  }, [router])
+  }, [router, addToast])
 
   return (
-    <DashboardLayout searchPlaceholder="Search reports, metadata, or AI insights...">
+    <DashboardLayout>
       <div className="p-xl max-w-[1400px] mx-auto">
         {/* ─── Page Header ─── */}
         <motion.div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-xl gap-md" {...simpleReveal}>
@@ -348,12 +399,52 @@ export default function ReportsPage() {
           </div>
         )}
 
+        {/* ─── Bulk Action Bar ─── */}
+        {someSelected && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-lg flex flex-wrap items-center justify-between gap-md rounded-xl border border-primary/30 bg-primary-container/10 px-md py-sm"
+          >
+            <div className="flex items-center gap-sm">
+              <Icon size="18px" className="text-primary">check_circle</Icon>
+              <span className="font-body-md text-on-surface">
+                {selected.size} selected
+              </span>
+            </div>
+            <div className="flex items-center gap-sm">
+              <button
+                onClick={clearSelection}
+                className="rounded-lg border border-outline-variant px-md py-1.5 font-body-md text-on-surface-variant transition-colors hover:text-on-surface"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-xs rounded-lg border border-error/30 px-md py-1.5 font-body-md font-bold text-error transition-colors hover:bg-error/10"
+              >
+                <Icon size="16px">delete</Icon>
+                Delete Selected
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* ─── Report Table ─── */}
         {!loading && !error && reports.length > 0 && (
           <motion.div className="glass-card rounded-xl overflow-hidden" variants={containerVariants} initial="hidden" whileInView="show" viewport={{ once: true }}>
             <table className="w-full">
               <thead>
                 <tr className="bg-surface-container-highest/50 border-b border-outline-variant">
+                  <th className="px-md py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 accent-primary cursor-pointer"
+                      aria-label="Select all reports"
+                    />
+                  </th>
                   {['Name', 'Department', 'Author', 'Size', 'Status', 'Actions'].map((h) => (
                     <th
                       key={h}
@@ -376,6 +467,17 @@ export default function ReportsPage() {
                       variants={itemVariants}
                       className="hover:bg-white/5 transition-colors group"
                     >
+                      {/* Select */}
+                      <td className="px-md py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.id)}
+                          onChange={() => toggleSelect(r.id)}
+                          className="h-4 w-4 accent-primary cursor-pointer"
+                          aria-label={`Select ${r.title}`}
+                        />
+                      </td>
+
                       {/* Name */}
                       <td className="px-md py-3">
                         <div className="flex items-center gap-sm">
@@ -422,7 +524,11 @@ export default function ReportsPage() {
                       {/* Actions */}
                       <td className="px-md py-3">
                         <div className="flex justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container-high transition-colors">
+                          <button
+                            onClick={() => router.push(`/reports/${r.id}`)}
+                            className="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container-high transition-colors"
+                            title="View report"
+                          >
                             <Icon size="18px" className="text-on-surface-variant">visibility</Icon>
                           </button>
                           <button
@@ -432,7 +538,11 @@ export default function ReportsPage() {
                           >
                             <Icon size="18px" className="text-on-surface-variant">smart_toy</Icon>
                           </button>
-                          <button className="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container-high transition-colors">
+                          <button
+                            onClick={() => handleOpenChat(r.id, r.title, 'comparison')}
+                            className="flex h-8 w-8 items-center justify-center rounded hover:bg-surface-container-high transition-colors"
+                            title="Compare with another report"
+                          >
                             <Icon size="18px" className="text-on-surface-variant">compare_arrows</Icon>
                           </button>
                           <button

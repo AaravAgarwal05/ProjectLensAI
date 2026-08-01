@@ -10,6 +10,7 @@ import dataclasses
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 
 from src.ai_core.chat.citations import CitationEngine
 from src.ai_core.chat.config import ChatConfiguration
@@ -52,6 +53,15 @@ _SUMMARY_PROMPT = (
 class PipelineTrace:
     """Per-request stage-level timing breakdown."""
 
+    request_id: str = ""
+    user_id: str = ""
+    session_id: str = ""
+    prompt_version: str = ""
+    prompt_hash: str = ""
+    model: str = ""
+    provider: str = ""
+    cache_hit: bool = False
+
     rewrite_ms: float = 0.0
     retrieval_ms: float = 0.0
     context_ms: float = 0.0
@@ -63,18 +73,77 @@ class PipelineTrace:
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
+    # Fine-grained retrieval timings (written by the retrieve closure)
+    embed_ms: float = 0.0
+    vector_search_ms: float = 0.0
+    bm25_ms: float = 0.0
+    cross_encoder_ms: float = 0.0
+    mmr_ms: float = 0.0
+
     def log(self, query: str, model: str) -> None:
         """Log the trace breakdown as structured info."""
         logger.info(
-            "[TRACE] query=%.60s model=%s total=%dms "
-            "rewrite=%dms retrieval=%dms context=%dms llm=%dms save=%dms "
+            "[TRACE] request=%s user=%s session=%s prompt=%s model=%s "
+            "total=%dms rewrite=%d retrieval=%d context=%d llm=%d save=%d "
+            "embed=%d vec=%d bm25=%d ce=%d mmr=%d "
             "chunks=%d cited=%d tokens=%d+%d",
-            query, model, int(self.total_ms),
+            self.request_id, self.user_id[:8], self.session_id[:8],
+            self.prompt_version, model, int(self.total_ms),
             int(self.rewrite_ms), int(self.retrieval_ms), int(self.context_ms),
             int(self.llm_ms), int(self.save_ms),
+            int(self.embed_ms), int(self.vector_search_ms), int(self.bm25_ms),
+            int(self.cross_encoder_ms), int(self.mmr_ms),
             self.chunks_retrieved, self.chunks_cited,
             self.prompt_tokens, self.completion_tokens,
         )
+
+    def persist(self) -> None:
+        """Record this trace to the TraceStore (fire-and-forget)."""
+        from src.ai_core.tracing.models import RequestTrace
+        from src.ai_core.tracing.store import TraceStore
+
+        try:
+            trace = RequestTrace(
+                request_id=self.request_id or None,
+                user_id=self.user_id,
+                session_id=self.session_id,
+                prompt_version=self.prompt_version,
+                prompt_hash=self.prompt_hash,
+                model=self.model,
+                provider=self.provider,
+                cache_hit=self.cache_hit,
+                rewrite_ms=self.rewrite_ms,
+                embed_ms=self.embed_ms,
+                vector_search_ms=self.vector_search_ms,
+                bm25_ms=self.bm25_ms,
+                cross_encoder_ms=self.cross_encoder_ms,
+                mmr_ms=self.mmr_ms,
+                context_ms=self.context_ms,
+                llm_ms=self.llm_ms,
+                save_ms=self.save_ms,
+                total_ms=self.total_ms,
+                chunks_retrieved=self.chunks_retrieved,
+                chunks_cited=self.chunks_cited,
+                prompt_tokens=self.prompt_tokens,
+                completion_tokens=self.completion_tokens,
+            )
+            import asyncio
+
+            asyncio.get_event_loop().create_task(TraceStore.record(trace))
+        except Exception:
+            logger.exception("Failed to persist request trace")
+
+    def apply(self, source: Any) -> None:
+        """Copy identity fields from an external RequestTrace if provided."""
+        if source is None:
+            return
+        for attr in ("request_id", "user_id", "session_id", "prompt_version",
+                     "prompt_hash", "model", "provider", "cache_hit",
+                     "rewrite_ms", "context_ms", "chunks_retrieved", "chunks_cited",
+                     "prompt_tokens", "completion_tokens"):
+            val = getattr(source, attr, None)
+            if val:
+                setattr(self, attr, val)
 
 
 class ChatOrchestrator:
@@ -112,7 +181,8 @@ class ChatOrchestrator:
         self,
         session_id: str,
         user_message: str,
-        retrieve_chunks: Callable[[str, list[str], int], Awaitable[list[ContextChunk]]] | None = None,
+        retrieve_chunks: Callable[[str, list[str], int, Any], Awaitable[list[ContextChunk]]] | None = None,
+        request_trace: Any | None = None,
     ) -> tuple[ChatMessageModel, list[CitationReference]]:
         """Process a user message through the full pipeline.
 
@@ -121,11 +191,14 @@ class ChatOrchestrator:
             user_message: The user's message text.
             retrieve_chunks: Optional callable to retrieve chunks
                 (query, report_ids, top_k) -> list[ContextChunk].
+            request_trace: Optional RequestTrace to stamp with stage timings.
 
         Returns:
             (assistant_message, citations)
         """
         trace = PipelineTrace()
+        trace.apply(request_trace)
+        trace.session_id = session_id
         t0 = time.monotonic()
 
         # Validate
@@ -155,7 +228,9 @@ class ChatOrchestrator:
         t_ret = time.monotonic()
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
-            chunks = await retrieve_chunks(search_query, session.report_ids, self._config.retrieval_top_k)
+            chunks = await retrieve_chunks(
+                search_query, session.report_ids, self._config.retrieval_top_k, trace
+            )
         trace.retrieval_ms = (time.monotonic() - t_ret) * 1000
         trace.chunks_retrieved = len(chunks)
 
@@ -205,7 +280,20 @@ class ChatOrchestrator:
         trace.total_ms = (time.monotonic() - t0) * 1000
         model = getattr(self._llm, '_config', None)
         model_name = model.model_name if model else "unknown"
+
+        # Stamp identity from LLM request/response metadata
+        req_meta = getattr(llm_request, "metadata", {}) or {}
+        trace.prompt_version = trace.prompt_version or req_meta.get("prompt_version", "")
+        trace.prompt_hash = trace.prompt_hash or req_meta.get("prompt_hash", "")
+        resp_meta = getattr(response, "metadata", None)
+        if resp_meta is not None:
+            trace.model = getattr(resp_meta, "model", "") or model_name
+            trace.provider = getattr(resp_meta, "provider", "") or getattr(
+                self._llm, "provider_name", ""
+            )
+
         trace.log(user_message, model_name)
+        trace.persist()
 
         return assistant_msg, citations
 
@@ -217,10 +305,13 @@ class ChatOrchestrator:
         self,
         session_id: str,
         user_message: str,
-        retrieve_chunks: Callable[[str, list[str], int], Awaitable[list[ContextChunk]]] | None = None,
+        retrieve_chunks: Callable[[str, list[str], int, Any], Awaitable[list[ContextChunk]]] | None = None,
+        request_trace: Any | None = None,
     ) -> AsyncIterator[StreamingChunk]:
         """Process a message and stream the response tokens."""
         trace = PipelineTrace()
+        trace.apply(request_trace)
+        trace.session_id = session_id
         t0 = time.monotonic()
 
         self._validation.validate_message(user_message)
@@ -234,7 +325,9 @@ class ChatOrchestrator:
         t_ret = time.monotonic()
         chunks: list[ContextChunk] = []
         if retrieve_chunks and session.report_ids:
-            chunks = await retrieve_chunks(user_message, session.report_ids, self._config.retrieval_top_k)
+            chunks = await retrieve_chunks(
+                user_message, session.report_ids, self._config.retrieval_top_k, trace
+            )
         trace.retrieval_ms = (time.monotonic() - t_ret) * 1000
         trace.chunks_retrieved = len(chunks)
 
@@ -285,7 +378,16 @@ class ChatOrchestrator:
 
                 trace.total_ms = (time.monotonic() - t0) * 1000
                 model = getattr(self._llm, '_config', None)
-                trace.log(user_message, model.model_name if model else "unknown")
+                model_name = model.model_name if model else "unknown"
+
+                req_meta = getattr(llm_request, "metadata", {}) or {}
+                trace.prompt_version = trace.prompt_version or req_meta.get("prompt_version", "")
+                trace.prompt_hash = trace.prompt_hash or req_meta.get("prompt_hash", "")
+                trace.model = trace.model or model_name
+                trace.provider = trace.provider or getattr(self._llm, "provider_name", "")
+
+                trace.log(user_message, model_name)
+                trace.persist()
 
                 yield chunk
                 return

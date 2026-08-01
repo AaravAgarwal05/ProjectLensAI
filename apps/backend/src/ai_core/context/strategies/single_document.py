@@ -26,7 +26,7 @@ class SingleDocumentStrategy(ContextStrategy):
         return "single_document"
 
     def __init__(self) -> None:
-        self._system_prompt = "You are a helpful document analysis assistant."
+        self._system_prompt = self._grounding_prompt()
 
     async def assemble(
         self,
@@ -57,14 +57,32 @@ class SingleDocumentStrategy(ContextStrategy):
         ctx.successful = bool(ctx.chunks) or bool(query)
         return ctx
 
+    @staticmethod
+    def _grounding_prompt() -> str:
+        """Strict grounding instructions — answer only from the retrieved context."""
+        return (
+            "You are a document analysis assistant. Answer STRICTLY from the retrieved context.\n"
+            "Rules:\n"
+            "1. Base every claim on the retrieved context. Never use outside knowledge.\n"
+            "2. Use the context to answer: extract the relevant facts, and aggregate or "
+            "compare across chunks when the question asks for it (e.g. highest/lowest, "
+            "totals, distributions).\n"
+            "3. For each fact you state, cite the chunk it came from as [Chunk N].\n"
+            "4. Do not add general knowledge, extra examples, or elaborations "
+            "not present in the context.\n"
+            "5. Only if the context genuinely has none of the information needed, "
+            "answer exactly: \"The retrieved context doesn't cover this question.\"\n"
+            "6. If only part of the answer is in the context, answer that part "
+            "and note the rest is not covered."
+        )
+
     def _build_system_prompt(self, chunks: list[ContextChunk]) -> str:
         titles = {c.source_title for c in chunks if c.source_title}
+        base = self._grounding_prompt()
         if titles:
             docs = ", ".join(sorted(titles))
-            return (
-                f"You are a helpful document analysis assistant. The user is asking about: {docs}."
-            )
-        return self._system_prompt
+            return f"{base}\nThe user is asking about: {docs}."
+        return base
 
     def _rank_and_select(self, chunks: list[ContextChunk]) -> list[ContextChunk]:
         return sorted(chunks, key=lambda c: c.score, reverse=True)[:20]

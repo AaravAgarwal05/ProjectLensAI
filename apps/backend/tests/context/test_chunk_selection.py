@@ -1,6 +1,7 @@
 """Tests for ChunkSelectionStrategy."""
 
 from src.ai_core.context.chunk_selection import ChunkSelectionStrategy
+from src.ai_core.context.configuration import ContextConfiguration
 from src.ai_core.context.models import ContextChunk
 
 
@@ -34,7 +35,11 @@ class TestChunkSelectionStrategy:
         assert ids.count("c1") == 1
 
     def test_merge_adjacent_same_source(self):
-        selector = ChunkSelectionStrategy()
+        # Merging is off by default (retrieval feeds ranked, not doc-ordered,
+        # chunks). Enable explicitly to exercise the merge logic.
+        selector = ChunkSelectionStrategy(
+            ContextConfiguration(enable_chunk_merging=True)
+        )
         chunks = [
             ContextChunk(
                 chunk_id="c1", content="part1", score=0.9, source_id="doc1", section_name="sec1"
@@ -50,6 +55,21 @@ class TestChunkSelectionStrategy:
         # First two should merge
         assert len(result) == 2
         assert "part1" in result[0].content
+
+    def test_no_merge_by_default(self):
+        # Regression: ranked retrieval returns same-section chunks in
+        # relevance order, not document order — merging them collapses
+        # citations (retrieved=4, cited=1). Default must keep them separate.
+        selector = ChunkSelectionStrategy()
+        chunks = [
+            ContextChunk(
+                chunk_id=f"c{i}", content=f"part{i}", score=1.0 - i * 0.1,
+                source_id="doc1", section_name="sec1",
+            )
+            for i in range(4)
+        ]
+        result = selector.select(chunks)
+        assert len(result) == 4
 
     def test_preserve_citations(self):
         selector = ChunkSelectionStrategy()

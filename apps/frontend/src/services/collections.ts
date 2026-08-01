@@ -97,13 +97,6 @@ export const CollectionService = {
     await apiRequest(`/collections/${id}`, { method: 'DELETE' })
   },
 
-  /** Get reports in a collection. */
-  async getReports(_collectionId: string) {
-    // Backend returns the collection including report_count but not report list.
-    // This can be enhanced when the backend adds a report membership listing endpoint.
-    return []
-  },
-
   /** Add a report to a collection. */
   async addReport(collectionId: string, reportId: string): Promise<void> {
     await apiRequest(`/collections/${collectionId}/reports/${reportId}`, {

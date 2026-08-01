@@ -1,0 +1,37 @@
+{
+  "document": "StudentGradeHistory",
+  "document_path": "test_data/StudentGradeHistory_23BCE10311.pdf",
+  "topic": "grades",
+  "queries": [
+    {
+      "id": "grades_q1",
+      "query": "What is the average GPA of students?",
+      "expected_topics": ["GPA", "average", "grade"],
+      "expected_grounded": true
+    },
+    {
+      "id": "grades_q2",
+      "query": "Which course has the highest failure rate?",
+      "expected_topics": ["failure", "course", "performance"],
+      "expected_grounded": true
+    },
+    {
+      "id": "grades_q3",
+      "query": "How many students are enrolled?",
+      "expected_topics": ["enrolled", "students", "count"],
+      "expected_grounded": true
+    },
+    {
+      "id": "grades_q4",
+      "query": "What is the grade distribution?",
+      "expected_topics": ["grade", "distribution", "A", "B", "C", "F"],
+      "expected_grounded": true
+    },
+    {
+      "id": "grades_q5",
+      "query": "Compare performance across semesters",
+      "expected_topics": ["semester", "performance", "comparison", "trend"],
+      "expected_grounded": true
+    }
+  ]
+}

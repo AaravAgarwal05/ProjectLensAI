@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Server start wall-clock — used to report uptime in /health.
+_START = time.monotonic()
+
 
 async def _check_database() -> dict[str, Any]:
     """Check database connectivity with a SELECT 1."""
@@ -113,5 +116,6 @@ async def health_check() -> dict[str, Any]:
         "status": overall,
         "version": settings.VERSION,
         "timestamp": datetime.now(UTC).isoformat(),
+        "uptime_seconds": int(time.monotonic() - _START),
         "checks": checks,
     }

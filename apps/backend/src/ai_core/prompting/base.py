@@ -10,9 +10,10 @@ class PromptTemplate:
     string and filled via ``format()``.
     """
 
-    def __init__(self, template: str, name: str = "") -> None:
+    def __init__(self, template: str, name: str = "", version: str = "v1") -> None:
         self.template = template
         self.name = name
+        self.version = version
 
     def format(self, **kwargs: Any) -> str:
         """Fill template placeholders with the provided values.

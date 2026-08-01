@@ -1,0 +1,37 @@
+{
+  "document": "Research Paper on DNA ~ 2",
+  "document_path": "test_data/Research Paper on DNA ~ 2.pdf",
+  "topic": "dna_storage_review",
+  "queries": [
+    {
+      "id": "dna2_q1",
+      "query": "Why is DNA considered a promising data storage medium?",
+      "expected_topics": ["stable", "energy-efficient", "sustainable", "resource", "carrier of genetic information"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna2_q2",
+      "query": "What are the write and read costs of DNA storage compared to tape?",
+      "expected_topics": ["$800 million/TB", "write cost", "tape $16/TB", "read cost", "sequencing"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna2_q3",
+      "query": "How can stored DNA molecules be preserved?",
+      "expected_topics": ["in vitro", "in vivo", "synthesized", "storage"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna2_q4",
+      "query": "What technical challenges does DNA storage face?",
+      "expected_topics": ["random access", "large libraries", "PB", "channel capacity", "error rates"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna2_q5",
+      "query": "What does the information theory framework use to analyze DNA storage?",
+      "expected_topics": ["mutual information", "channel capacity", "channel inputs", "transmission error"],
+      "expected_grounded": true
+    }
+  ]
+}

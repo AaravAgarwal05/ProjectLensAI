@@ -49,6 +49,9 @@ class AppSettings(BaseSettings):
     OLLAMA_HOST: str = "localhost"
     OLLAMA_PORT: int = 11434
 
+    # OpenCode Zen (free-model LLM provider — set OPENCODE_ZEN_API_KEY to use)
+    OPENCODE_ZEN_API_KEY: str = ""
+
     @property
     def ollama_base_url(self) -> str:
         return f"http://{self.OLLAMA_HOST}:{self.OLLAMA_PORT}"

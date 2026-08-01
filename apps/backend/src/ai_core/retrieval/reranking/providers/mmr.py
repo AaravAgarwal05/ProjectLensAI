@@ -61,8 +61,11 @@ class MMRReranker(Reranker):
         selected.append(best)
 
         while len(selected) < top_k and remaining:
+            # Track the best MMR candidate AND a relevance-only fallback so
+            # negative scores (e.g. CE logits) never collapse the result set.
             best_idx = -1
-            best_score = -1.0
+            best_score = float("-inf")
+            fallback_idx = 0  # highest-relevance remaining chunk
 
             for i, cand in enumerate(remaining):
                 # Relevance term
@@ -81,9 +84,10 @@ class MMRReranker(Reranker):
                     best_score = mmr_score
                     best_idx = i
 
-            if best_idx < 0:
-                break
-            selected.append(remaining.pop(best_idx))
+            # If nothing beats the fallback threshold, take the next
+            # highest-relevance chunk rather than returning fewer results.
+            pick = best_idx if best_idx >= 0 else fallback_idx
+            selected.append(remaining.pop(pick))
 
         # Preserve original scores in metadata, return mmr-sorted
         for i, c in enumerate(selected):

@@ -71,13 +71,8 @@ export default function LandingPage() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-brand">
-              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-                <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-              </svg>
-            </div>
-            <span className="text-lg font-bold tracking-tight">ProjectLens AI</span>
+            <img src="/Logo.png" alt="ProjectLens AI" className="h-8 w-8 rounded-full object-cover" />
+            <span className="font-logo text-lg font-semibold tracking-tight">ProjectLens AI</span>
           </div>
 
           {/* Desktop nav */}

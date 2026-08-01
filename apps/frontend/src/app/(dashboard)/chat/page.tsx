@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
 import { ChatService } from '@/services/chat'
+import { useToast } from '@/providers/toast-provider'
 import type { ChatSession } from '@/types/chat'
 
 /* ─── animation variants ─── */
@@ -37,6 +39,8 @@ export default function ChatHomePage() {
   const [search, setSearch] = useState('')
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const { addToast } = useToast()
 
   useEffect(() => {
     let cancelled = false
@@ -53,6 +57,25 @@ export default function ChatHomePage() {
     load()
     return () => { cancelled = true }
   }, [])
+
+  const handleNewChat = useCallback(async () => {
+    try {
+      const session = await ChatService.createSession({ title: 'New Chat', mode: 'single' })
+      router.push(`/chat/${session.id}`)
+    } catch {
+      addToast('Could not start a new chat. Try again.', 'error')
+    }
+  }, [router, addToast])
+
+  const handleDeleteSession = useCallback(async (id: string) => {
+    try {
+      await ChatService.deleteSession(id)
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      addToast('Chat deleted', 'success')
+    } catch {
+      addToast('Could not delete chat. Try again.', 'error')
+    }
+  }, [addToast])
 
   const filtered = search
     ? sessions.filter(
@@ -79,13 +102,13 @@ export default function ChatHomePage() {
             </p>
           </div>
 
-          <Link
-            href="/chat/new"
+          <button
+            onClick={handleNewChat}
             className="flex items-center gap-sm rounded bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90"
           >
             <Icon size="18px">add</Icon>
             New Chat
-          </Link>
+          </button>
         </motion.div>
 
         {/* Search */}
@@ -112,8 +135,21 @@ export default function ChatHomePage() {
 
         {/* Chat list */}
         {loading ? (
-          <div className="flex flex-1 items-center justify-center py-xxl">
-            <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="grid gap-md sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-outline-variant bg-surface-container-low p-md"
+              >
+                <div className="h-10 w-10 animate-pulse rounded-lg bg-surface-container-high" />
+                <div className="mt-md h-4 w-3/4 animate-pulse rounded bg-surface-container-high" />
+                <div className="mt-xs h-3 w-1/2 animate-pulse rounded bg-surface-container-high" />
+                <div className="mt-md flex items-center justify-between border-t border-outline-variant/50 pt-sm">
+                  <div className="h-3 w-16 animate-pulse rounded bg-surface-container-high/60" />
+                  <div className="h-3 w-12 animate-pulse rounded bg-surface-container-high/60" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
           <motion.div
@@ -139,10 +175,7 @@ export default function ChatHomePage() {
           >
             {filtered.map((session) => (
               <motion.div key={session.id} variants={itemVariants}>
-                <Link
-                  href={`/chat/${session.id}`}
-                  className="group relative block rounded-xl border border-outline-variant bg-surface-container-low p-md transition-all hover:border-primary/30 hover:bg-surface-container-high"
-                >
+                <div className="group relative block rounded-xl border border-outline-variant bg-surface-container-low p-md transition-all hover:border-primary/30 hover:bg-surface-container-high">
                   {/* Icon */}
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-container/20">
                     <Icon size="20px" className="text-primary">
@@ -152,7 +185,9 @@ export default function ChatHomePage() {
 
                   {/* Title */}
                   <h3 className="mt-md font-body-md font-bold text-on-surface group-hover:text-primary transition-colors">
-                    {session.title}
+                    <Link href={`/chat/${session.id}`} className="hover:text-primary transition-colors">
+                      {session.title}
+                    </Link>
                   </h3>
 
                   {/* Preview */}
@@ -174,14 +209,24 @@ export default function ChatHomePage() {
                     </span>
                   </div>
 
-                  {/* Hover arrow */}
-                  <Icon
-                    size="16px"
-                    className="absolute right-md top-md text-outline opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    arrow_right_alt
-                  </Icon>
-                </Link>
+                  {/* Hover actions */}
+                  <div className="absolute right-md top-md flex gap-xs opacity-0 transition-opacity group-hover:opacity-100">
+                    <Link
+                      href={`/chat/${session.id}`}
+                      className="flex h-8 w-8 items-center justify-center rounded bg-surface-container-highest text-on-surface-variant transition-colors hover:text-primary"
+                      title="Open chat"
+                    >
+                      <Icon size="16px">arrow_right_alt</Icon>
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteSession(session.id)}
+                      className="flex h-8 w-8 items-center justify-center rounded bg-surface-container-highest text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error"
+                      title="Delete chat"
+                    >
+                      <Icon size="16px">delete</Icon>
+                    </button>
+                  </div>
+                </div>
               </motion.div>
             ))}
           </motion.div>

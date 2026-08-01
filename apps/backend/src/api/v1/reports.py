@@ -411,7 +411,7 @@ async def search_report_chunks(
         raise HTTPException(
             status_code=404,
             detail=f"ChromaDB collection for report {report_id} not found",
-        )
+        ) from None
 
     from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
 

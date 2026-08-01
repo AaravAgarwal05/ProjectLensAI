@@ -11,6 +11,7 @@ interface ChatState {
   setActiveSession: (session: ChatSession | null) => void
   setMessages: (messages: ChatMessage[]) => void
   addMessage: (message: ChatMessage) => void
+  removeSession: (sessionId: string) => void
   setLoadingSessions: (loading: boolean) => void
   setLoadingMessages: (loading: boolean) => void
 }
@@ -25,6 +26,12 @@ export const useChatStore = create<ChatState>((set) => ({
   setActiveSession: (activeSession) => set({ activeSession }),
   setMessages: (messages) => set({ messages }),
   addMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
+  removeSession: (sessionId) =>
+    set((s) => ({
+      sessions: s.sessions.filter((x) => x.id !== sessionId),
+      activeSession: s.activeSession?.id === sessionId ? null : s.activeSession,
+      messages: s.activeSession?.id === sessionId ? [] : s.messages,
+    })),
   setLoadingSessions: (isLoadingSessions) => set({ isLoadingSessions }),
   setLoadingMessages: (isLoadingMessages) => set({ isLoadingMessages }),
 }))

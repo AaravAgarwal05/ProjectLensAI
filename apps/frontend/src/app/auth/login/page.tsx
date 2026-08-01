@@ -79,10 +79,12 @@ export default function LoginPage() {
     >
       {/* ─── Brand Identity ─── */}
       <motion.div className="flex flex-col items-center mb-xl" variants={fadeUp}>
-        <div className="w-12 h-12 bg-primary flex items-center justify-center rounded-xl mb-md ai-glow">
-          <Icon fill size="28px" className="text-on-primary">precision_manufacturing</Icon>
-        </div>
-        <h1 className="font-display text-headline-lg text-on-surface tracking-tight">ProjectLens AI</h1>
+        <img
+          src="/Logo.png"
+          alt="ProjectLens AI"
+          className="mb-md h-16 w-16 rounded-full object-cover ai-glow"
+        />
+        <h1 className="font-logo text-headline-lg text-on-surface tracking-tight">ProjectLens AI</h1>
         <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest mt-xs">Precision Intelligence</p>
       </motion.div>
 

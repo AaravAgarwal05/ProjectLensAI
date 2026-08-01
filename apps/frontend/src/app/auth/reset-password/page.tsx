@@ -56,8 +56,8 @@ export default function ResetPasswordPage() {
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
         <div className="flex items-center gap-sm">
-          <Icon fill className="text-primary text-headline-md">lens_blur</Icon>
-          <span className="font-display text-headline-md font-extrabold text-primary tracking-tight">ProjectLens AI</span>
+          <img src="/Logo.png" alt="ProjectLens AI" className="h-8 w-8 rounded-full object-cover" />
+          <span className="font-logo text-headline-md font-semibold text-primary tracking-tight">ProjectLens AI</span>
         </div>
       </motion.header>
 

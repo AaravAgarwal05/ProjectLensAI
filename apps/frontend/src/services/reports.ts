@@ -185,6 +185,11 @@ export const ReportService = {
     await apiRequest(`/reports/${id}`, { method: 'DELETE' })
   },
 
+  /** Delete multiple reports. */
+  async deleteMany(ids: string[]): Promise<void> {
+    await Promise.all(ids.map((id) => this.delete(id)))
+  },
+
   /** List all versions of a report. */
   async getVersions(reportId: string): Promise<ReportVersion[]> {
     const data = await apiRequest<VersionResponse[]>(
@@ -193,8 +198,4 @@ export const ReportService = {
     return data.map((v) => mapVersion(v, reportId))
   },
 
-  /** Get chunk count for a report — not yet available via API. */
-  async getChunkCount(_reportId: string): Promise<number> {
-    return 0
-  },
 }

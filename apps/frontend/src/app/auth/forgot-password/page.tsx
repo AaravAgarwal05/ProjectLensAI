@@ -28,10 +28,12 @@ export default function ForgotPasswordPage() {
     >
       {/* ─── Brand ─── */}
       <motion.div className="flex flex-col items-center mb-xl" variants={fadeUp}>
-        <div className="w-12 h-12 bg-primary-container/20 rounded-xl flex items-center justify-center mb-md border border-primary/20 ai-glow">
-          <Icon fill size="28px" className="text-primary">insights</Icon>
-        </div>
-        <h1 className="font-display text-headline-lg text-on-surface tracking-tight mb-xs">ProjectLens AI</h1>
+        <img
+          src="/Logo.png"
+          alt="ProjectLens AI"
+          className="mb-md h-16 w-16 rounded-full object-cover ai-glow"
+        />
+        <h1 className="font-logo text-headline-lg text-on-surface tracking-tight mb-xs">ProjectLens AI</h1>
         <p className="font-body-md text-on-surface-variant text-center px-lg">Precision Intelligence for your data ecosystem.</p>
       </motion.div>
 

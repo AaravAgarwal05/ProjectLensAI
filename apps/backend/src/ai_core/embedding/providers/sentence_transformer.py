@@ -8,7 +8,7 @@ Supports batch embedding, device configuration, and L2 normalisation.
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from src.ai_core.embedding.base import EmbeddingProvider
 

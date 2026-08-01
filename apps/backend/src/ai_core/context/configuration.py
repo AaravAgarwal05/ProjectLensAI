@@ -19,7 +19,11 @@ class ContextConfiguration:
     conversation_max_messages: int = 20
     enable_conversation_summary: bool = True
     enable_chunk_dedup: bool = True
-    enable_chunk_merging: bool = True
+    # Merging is OFF by default: _merge_adjacent assumes input is in document
+    # order, but retrieval feeds chunks ranked by relevance/MMR, so it re-glues
+    # non-contiguous same-section chunks into one blob and collapses per-chunk
+    # citations (retrieved=4, cited=1). Re-enable only with real adjacency info.
+    enable_chunk_merging: bool = False
     enable_parent_expansion: bool = True
     default_strategy: str = "single_document"
     metadata: dict[str, Any] = field(default_factory=dict)

@@ -4,16 +4,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
+import { useAuthStore } from '@/stores/auth-store'
 import {
   LayoutDashboard,
   FileText,
   FolderOpen,
   MessageSquare,
-  GitCompare,
-  Workflow,
-  BarChart3,
   Settings,
-  Shield,
   Sparkles,
 } from 'lucide-react'
 
@@ -27,15 +24,12 @@ const navItems = [
   { href: '/reports', label: 'Reports', icon: FileText },
   { href: '/collections', label: 'Collections', icon: FolderOpen },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/compare', label: 'Compare', icon: GitCompare },
-  { href: '/workflows', label: 'Workflows', icon: Workflow },
-  { href: '/benchmarks', label: 'Benchmarks', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/admin', label: 'Admin', icon: Shield },
 ]
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const pathname = usePathname()
+  const user = useAuthStore((s) => s.user)
 
   if (!isOpen) return null
 
@@ -95,11 +89,17 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
         <div className="border-t border-surface-200 px-3 py-4">
           <div className="flex items-center gap-3 px-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
-              JD
+              {(user?.name || user?.email || 'U')
+                .split(' ')
+                .map((n) => n[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
             </div>
-            <div className="text-sm">
-              <p className="font-medium text-surface-900">Jane Doe</p>
-              <p className="text-surface-500">jane@example.com</p>
+            <div className="min-w-0 text-sm">
+              <p className="truncate font-medium text-surface-900">{user?.name || 'Guest'}</p>
+              <p className="truncate text-surface-500">{user?.email || 'Not signed in'}</p>
             </div>
           </div>
         </div>

@@ -172,6 +172,13 @@ class HeadingAwareChunker(ChunkingStrategy):
             node.parent = root
             return root
 
+        # Text before the first heading is content too — never drop it.
+        # (e.g. a paper body that precedes a numbered reference list)
+        if matches[0].start() > 0:
+            preamble = _HeadingNode(level=1, title="(preamble)", start_offset=0, end_offset=matches[0].start())
+            root.children.append(preamble)
+            preamble.parent = root
+
         # Convert matches to nodes and build tree
         nodes: list[_HeadingNode] = []
         for m in matches:

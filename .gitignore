@@ -134,4 +134,6 @@ tokens/
 .claude-flow/
 
 # ── Testing Data ─────────────────────────────────
-test_data/
+test_data/rag_eval_results.json
+rag_eval_results.json
+test_data/*.pdf

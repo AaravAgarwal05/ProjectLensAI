@@ -26,11 +26,11 @@ class ProcessingPreferences(BaseModel):
     )
     llm_provider: str = Field(
         default=DEFAULT_PREFERENCES["llm_provider"],
-        description="LLM provider: ollama, claude, gpt",
+        description="LLM provider: google (Gemini), opencode_zen (DeepSeek), ollama (local)",
     )
     llm_model: str = Field(
         default=DEFAULT_PREFERENCES["llm_model"],
-        description="LLM model: gemma3:1b, llama3.2:1b, etc.",
+        description="LLM model, e.g. gemini-2.5-flash, deepseek-v4-flash-free, llama3.2:1b",
     )
     retrieval_strategy: str = Field(
         default=DEFAULT_PREFERENCES["retrieval_strategy"],

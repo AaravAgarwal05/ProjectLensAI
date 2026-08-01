@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
+import { useAuthStore } from '@/stores/auth-store'
+import { AuthService } from '@/services/auth'
+import { apiRequest } from '@/lib/api'
 import {
   SettingsService,
   CHUNKING_OPTIONS,
@@ -54,7 +57,7 @@ const TABS: TabDef[] = [
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('profile')
-  const [activeTheme, setActiveTheme] = useState<string>('Deep Obsidian')
+  const [activeTheme, setActiveTheme] = useState<string>('obsidian')
   const [accentColor, setAccentColor] = useState<string>('#c0c1ff')
   const [highDensity, setHighDensity] = useState<boolean>(false)
   const tabBarRef = useRef<HTMLDivElement>(null)
@@ -71,6 +74,14 @@ export default function SettingsPage() {
       setIndicatorStyle({ width: btn.offsetWidth, left: btn.offsetLeft })
     }
   }, [activeTab])
+
+  // Sync appearance state from the values the layout bootstrap already applied
+  useEffect(() => {
+    const el = document.documentElement
+    setActiveTheme(el.getAttribute('data-theme') || 'obsidian')
+    setAccentColor(el.getAttribute('data-accent') || '#c0c1ff')
+    setHighDensity(el.getAttribute('data-density') === 'high')
+  }, [])
 
   /* ─── tab content ─── */
 
@@ -97,7 +108,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <DashboardLayout searchPlaceholder="Search settings or tools...">
+    <DashboardLayout>
       <div className="mx-auto w-full max-w-6xl p-xl pb-32 flex flex-col gap-xl">
         {/* ─── Page Header ─── */}
         <motion.div {...fadeUp}>
@@ -165,13 +176,37 @@ export default function SettingsPage() {
    ═══════════════════════════════════════════════════ */
 
 function ProfileTab() {
+  const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
+  const [loading, setLoading] = useState(!useAuthStore.getState().user)
+  const name = user?.name ?? ''
+  const email = user?.email ?? ''
+
+  // Autofill: hydrate user from backend if the store wasn't populated
+  // (e.g. navigating straight to /settings).
+  useEffect(() => {
+    if (user) return
+    AuthService.getCurrentUser()
+      .then(setUser)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [user, setUser])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-1 gap-lg md:grid-cols-3">
       {/* Left Column */}
       <motion.div variants={itemStagger} className="md:col-span-1">
         <h2 className="mb-xs font-headline-md text-on-surface">Personal Identity</h2>
         <p className="font-body-md text-sm text-on-surface-variant">
-          Manage your display name, avatar, and contact information used across the workspace.
+          Your profile information, as registered on your account.
         </p>
       </motion.div>
 
@@ -180,22 +215,16 @@ function ProfileTab() {
         {/* Avatar Card */}
         <div className="glass-card flex items-center gap-xl rounded-xl p-lg">
           <div className="group relative h-24 w-24 shrink-0">
-            {/* Avatar */}
-            <div className="h-24 w-24 rounded-full border-2 border-primary-container/30 bg-surface-container-high" />
-            {/* Hover overlay */}
-            <div className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-              <Icon className="text-on-surface" size="24px">
-                photo_camera
-              </Icon>
+            {/* Avatar with initials */}
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-primary-container/30 bg-gradient-to-br from-primary to-secondary text-2xl font-bold text-on-primary">
+              {name
+                .split(' ')
+                .map((n) => n[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('')
+                .toUpperCase() || 'U'}
             </div>
-          </div>
-          <div className="flex items-center gap-md">
-            <button className="rounded-full bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90">
-              Change Photo
-            </button>
-            <button className="rounded-full border border-outline-variant px-lg py-sm font-body-md text-on-surface-variant transition-colors hover:text-on-surface">
-              Remove
-            </button>
           </div>
         </div>
 
@@ -206,15 +235,17 @@ function ProfileTab() {
             <div className="flex flex-col gap-sm">
               <label className="font-label-md text-[11px] uppercase text-outline">Full Name</label>
               <input
-                defaultValue="Alex Chen"
-                className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none transition-colors focus:border-primary"
+                value={name}
+                readOnly
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none"
               />
             </div>
             <div className="flex flex-col gap-sm">
               <label className="font-label-md text-[11px] uppercase text-outline">Role</label>
               <input
-                defaultValue="Senior ML Engineer"
-                className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none transition-colors focus:border-primary"
+                value={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : ''}
+                readOnly
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none capitalize"
               />
             </div>
           </div>
@@ -222,10 +253,14 @@ function ProfileTab() {
           <div className="flex flex-col gap-sm">
             <label className="font-label-md text-[11px] uppercase text-outline">Email Address</label>
             <input
-              defaultValue="alex.chen@projectlens.ai"
-              className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none transition-colors focus:border-primary"
+              value={email}
+              readOnly
+              className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-sm py-sm font-body-md text-on-surface outline-none"
             />
           </div>
+          <p className="font-label-md text-outline">
+            Profile fields are managed by your account.
+          </p>
         </div>
       </motion.div>
     </div>
@@ -489,9 +524,9 @@ function AIConfigTab() {
    ═══════════════════════════════════════════════════ */
 
 const THEMES = [
-  { name: 'Deep Obsidian', colors: ['#131315', '#1c1b1d', '#c0c1ff'] },
-  { name: 'Modern Zinc', colors: ['#18181b', '#27272a', '#a1a1aa'] },
-  { name: 'Crystal Light', colors: ['#fafafa', '#f4f4f5', '#18181b'] },
+  { id: 'obsidian', name: 'Deep Obsidian', colors: ['#131315', '#1c1b1d', '#c0c1ff'] },
+  { id: 'zinc', name: 'Modern Zinc', colors: ['#18181b', '#27272a', '#a1a1aa'] },
+  { id: 'crystal', name: 'Crystal Light', colors: ['#f8f9fc', '#f4f4f9', '#3f3fb2'] },
 ]
 
 const ACCENTS = ['#c0c1ff', '#ddb7ff', '#89ceff', '#ffb4ab', '#4ade80']
@@ -511,6 +546,47 @@ function AppearanceTab({
   highDensity: boolean
   setHighDensity: (v: boolean) => void
 }) {
+  // Apply an appearance change to <html> and persist it — takes effect app-wide.
+  const apply = useCallback(
+    (theme?: string, accent?: string, density?: boolean) => {
+      const el = document.documentElement
+      try {
+        if (theme) {
+          el.setAttribute('data-theme', theme)
+          localStorage.setItem('lens.theme', theme)
+        }
+        if (accent) {
+          el.setAttribute('data-accent', accent)
+          localStorage.setItem('lens.accent', accent)
+        }
+        if (density !== undefined) {
+          if (density) el.setAttribute('data-density', 'high')
+          else el.removeAttribute('data-density')
+          localStorage.setItem('lens.density', density ? 'high' : 'normal')
+        }
+      } catch {
+        // localStorage may be unavailable — still apply for this session
+      }
+    },
+    []
+  )
+
+  const pickTheme = (id: string) => {
+    setActiveTheme(id)
+    apply(id, undefined, undefined)
+  }
+
+  const pickAccent = (color: string) => {
+    setAccentColor(color)
+    apply(undefined, color, undefined)
+  }
+
+  const toggleDensity = () => {
+    const next = !highDensity
+    setHighDensity(next)
+    apply(undefined, undefined, next)
+  }
+
   return (
     <div className="grid grid-cols-1 gap-lg md:grid-cols-3">
       {/* Left Column */}
@@ -528,11 +604,11 @@ function AppearanceTab({
           <label className="font-label-md text-[11px] uppercase text-outline">Color Theme</label>
           <div className="grid grid-cols-3 gap-md">
             {THEMES.map((t) => {
-              const isActive = activeTheme === t.name
+              const isActive = activeTheme === t.id
               return (
                 <button
-                  key={t.name}
-                  onClick={() => setActiveTheme(t.name)}
+                  key={t.id}
+                  onClick={() => pickTheme(t.id)}
                   className={`overflow-hidden rounded-xl transition-all ${
                     isActive
                       ? 'border-2 border-primary ring-1 ring-primary/30'
@@ -567,10 +643,11 @@ function AppearanceTab({
               return (
                 <button
                   key={color}
-                  onClick={() => setAccentColor(color)}
+                  onClick={() => pickAccent(color)}
+                  aria-label={`Accent ${color}`}
                   className={`h-10 w-10 rounded-full transition-all ${
                     isActive
-                      ? 'ring-4 ring-[#c0c1ff]/20 ring-offset-2 ring-offset-surface'
+                      ? 'ring-4 ring-primary/20 ring-offset-2 ring-offset-surface'
                       : 'hover:scale-110'
                   }`}
                   style={{ background: color }}
@@ -591,7 +668,8 @@ function AppearanceTab({
             </div>
             {/* Toggle */}
             <button
-              onClick={() => setHighDensity(!highDensity)}
+              onClick={toggleDensity}
+              aria-label="Toggle high density"
               className={`relative h-6 w-12 rounded-full transition-colors ${
                 highDensity ? 'bg-primary' : 'bg-outline-variant'
               }`}
@@ -613,92 +691,208 @@ function AppearanceTab({
    SYSTEM STATUS TAB
    ═══════════════════════════════════════════════════ */
 
-const SERVICES = [
-  { endpoint: 'api.projectlens.ai/v1/inference', status: 'OPERATIONAL', latency: '124ms' },
-  { endpoint: 'vector-db.us-east-1.aws', status: 'OPERATIONAL', latency: '42ms' },
-  { endpoint: 'assets-ingestion-worker', status: 'DEGRADED', latency: '1.2s' },
-]
+interface HealthCheck {
+  status: string
+  latency_ms: number
+}
+
+interface HealthResponse {
+  status: string
+  version: string
+  timestamp: string
+  uptime_seconds: number
+  checks: Record<string, HealthCheck>
+}
+
+const SERVICE_LABELS: Record<string, string> = {
+  database: 'Database',
+  chromadb: 'Vector Store',
+  ollama: 'LLM (Ollama)',
+  redis: 'Redis Cache',
+}
+
+/* ─── status → display mapping (3-state, not just ok/degraded) ─── */
+
+const STATUS_META: Record<'ok' | 'error' | 'degraded', { label: string; dot: string; text: string }> = {
+  ok: {
+    label: 'OPERATIONAL',
+    dot: 'bg-emerald-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]',
+    text: 'text-emerald-400',
+  },
+  error: {
+    label: 'DOWN',
+    dot: 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]',
+    text: 'text-red-400',
+  },
+  degraded: {
+    label: 'DEGRADED',
+    dot: 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]',
+    text: 'text-amber-400',
+  },
+}
+
+function formatUptime(s: number): string {
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${sec}s`
+  return `${sec}s`
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.floor(Math.max(0, Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  return `${Math.floor(m / 60)}h ago`
+}
 
 function SystemStatusTab() {
+  const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const poll = () =>
+      apiRequest<HealthResponse>('/health')
+        .then((h) => {
+          if (!cancelled) setHealth(h)
+        })
+        .catch(() => {
+          if (!cancelled) setHealth(null)
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+    poll()
+    const id = setInterval(poll, 30000) // refresh every 30s
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [])
+
+  const checks = health?.checks ?? {}
+  const entries = Object.entries(checks)
+  const operational = entries.filter(([, c]) => c.status === 'ok').length
+  const statusMeta = (s: string) =>
+    STATUS_META[s as keyof typeof STATUS_META] ?? STATUS_META.degraded
+  const overall = health ? statusMeta(health.status) : STATUS_META.degraded
+
   return (
     <div className="grid grid-cols-1 gap-lg md:grid-cols-3">
       {/* Left Column */}
       <motion.div variants={itemStagger} className="md:col-span-1">
         <h2 className="mb-xs font-headline-md text-on-surface">Infrastructure Health</h2>
         <p className="font-body-md text-sm text-on-surface-variant">
-          Real-time metrics on service availability, latency, and API key security.
+          Live connectivity status of the services powering your workspace.
         </p>
       </motion.div>
 
       {/* Right Column */}
       <motion.div variants={itemStagger} className="flex flex-col gap-lg md:col-span-2">
-        {/* Services Table */}
-        <div className="glass-card overflow-hidden rounded-xl">
-          <table className="w-full text-left font-body-md">
-            <thead className="bg-surface-container-high">
-              <tr>
-                <th className="px-lg py-3 font-label-md text-[11px] uppercase tracking-wider text-outline">
-                  Endpoint
-                </th>
-                <th className="px-lg py-3 font-label-md text-[11px] uppercase tracking-wider text-outline">
-                  Status
-                </th>
-                <th className="px-lg py-3 font-label-md text-[11px] uppercase tracking-wider text-outline">
-                  Latency
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/30">
-              {SERVICES.map((svc) => (
-                <tr key={svc.endpoint} className="transition-colors hover:bg-surface-container-low">
-                  <td className="px-lg py-md font-body-md font-bold text-on-surface">{svc.endpoint}</td>
-                  <td className="px-lg py-md">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`block h-2 w-2 rounded-full ${
-                          svc.status === 'OPERATIONAL'
-                            ? 'bg-emerald-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
-                            : 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]'
-                        }`}
-                      />
-                      <span
-                        className={`font-body-md ${
-                          svc.status === 'OPERATIONAL' ? 'text-emerald-400' : 'text-amber-400'
-                        }`}
-                      >
-                        {svc.status}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-lg py-md font-code-sm text-on-surface-variant">{svc.latency}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* API Key Management */}
-        <div className="glass-card flex flex-col gap-lg rounded-xl p-lg">
-          <label className="font-label-md text-[11px] uppercase text-outline">API Key</label>
-          <div className="flex items-center justify-between rounded-lg bg-surface-container-low p-md">
-            <div className="flex items-center gap-md">
-              <Icon className="text-primary" size="20px">
-                key
-              </Icon>
-              <span className="font-code-sm text-on-surface-variant">sk_lens_live_****...3f9a</span>
-            </div>
-            <div className="flex items-center gap-md">
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-surface-container-high">
-                <Icon className="text-on-surface-variant" size="18px">
-                  content_copy
-                </Icon>
-              </button>
-              <button className="rounded-full border border-error px-lg py-1 font-body-md text-error transition-colors hover:bg-error/10">
-                Revoke All
-              </button>
-            </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        </div>
+        ) : health ? (
+          <>
+            {/* Overall status banner */}
+            <div
+              className={`glass-card flex items-center justify-between gap-md rounded-xl p-lg ${
+                health.status === 'ok'
+                  ? ''
+                  : health.status === 'down'
+                    ? 'border-red-500/40'
+                    : 'border-amber-500/40'
+              }`}
+            >
+              <div className="flex items-center gap-md">
+                <span className={`block h-3 w-3 rounded-full ${overall.dot}`} />
+                <div>
+                  <p className="font-headline-md font-bold text-on-surface">
+                    {health.status === 'ok'
+                      ? 'All systems operational'
+                      : health.status === 'down'
+                        ? 'System unavailable'
+                        : 'Partial degradation'}
+                  </p>
+                  <p className="font-label-md text-on-surface-variant">
+                    {operational} of {entries.length} services operational
+                  </p>
+                </div>
+              </div>
+              <div className="hidden gap-lg text-right sm:flex">
+                <div>
+                  <p className="font-label-md text-[10px] uppercase tracking-wider text-outline">Version</p>
+                  <p className="font-code-sm text-on-surface">{health.version}</p>
+                </div>
+                <div>
+                  <p className="font-label-md text-[10px] uppercase tracking-wider text-outline">Uptime</p>
+                  <p className="font-code-sm text-on-surface">{formatUptime(health.uptime_seconds ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="font-label-md text-[10px] uppercase tracking-wider text-outline">Checked</p>
+                  <p className="font-code-sm text-on-surface">{timeAgo(health.timestamp)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Services Table */}
+            <div className="glass-card overflow-hidden rounded-xl">
+              <table className="w-full text-left font-body-md">
+                <thead className="bg-surface-container-high">
+                  <tr>
+                    <th className="px-lg py-3 font-label-md text-[11px] uppercase tracking-wider text-outline">
+                      Service
+                    </th>
+                    <th className="px-lg py-3 font-label-md text-[11px] uppercase tracking-wider text-outline">
+                      Status
+                    </th>
+                    <th className="px-lg py-3 font-label-md text-[11px] uppercase tracking-wider text-outline">
+                      Latency
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/30">
+                  {entries.map(([key, check]) => {
+                    const meta = statusMeta(check.status)
+                    return (
+                      <tr key={key} className="transition-colors hover:bg-surface-container-low">
+                        <td className="px-lg py-md font-body-md font-bold text-on-surface">
+                          {SERVICE_LABELS[key] ?? key}
+                        </td>
+                        <td className="px-lg py-md">
+                          <div className="flex items-center gap-2">
+                            <span className={`block h-2 w-2 rounded-full ${meta.dot}`} />
+                            <span className={`font-body-md ${meta.text}`}>{meta.label}</span>
+                          </div>
+                        </td>
+                        <td className="px-lg py-md font-code-sm text-on-surface-variant">
+                          {check.latency_ms}ms
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="glass-card rounded-xl p-xl text-center">
+            <p className="font-body-md text-on-surface-variant">
+              Could not reach the health endpoint.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-md rounded-lg bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90"
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </motion.div>
     </div>
   )

@@ -112,7 +112,13 @@ class EmbeddingPipeline:
             )
 
         # Configure provider from config
-        embedder.configure(cfg.extra)
+        provider_params = dict(cfg.extra)
+        if provider_name == "ollama":
+            # Thread the resolved Ollama URL/model into the provider —
+            # the factory constructs it with the class default otherwise.
+            provider_params.setdefault("base_url", cfg.ollama_base_url)
+            provider_params.setdefault("model_name", cfg.ollama_model)
+        embedder.configure(provider_params)
 
         if not chunks:
             return EmbeddingResult(

@@ -1,159 +1,198 @@
 'use client'
 
-import { use } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { PageHeader } from '@/components/shared/page-header'
-import { PageContainer } from '@/components/shared/page-container'
-import { SectionCard } from '@/components/shared/section-card'
-import { EmptyState } from '@/components/shared/empty-state'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { FolderOpen, FileText, Plus, Trash2 } from 'lucide-react'
-import { placeholderCollections, placeholderReports } from '@/lib/placeholders'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { DashboardLayout } from '@/components/layout/dashboard-layout'
+import { Icon } from '@/components/shared/icon'
+import { CollectionService } from '@/services/collections'
+import { useToast } from '@/providers/toast-provider'
+import type { Collection } from '@/types'
+
+const reveal = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.4, ease: 'easeOut' as const },
+}
 
 export default function CollectionDetailPage({
   params,
 }: {
   params: Promise<{ collectionId: string }>
 }) {
-  const { collectionId } = use(params)
-  const collection = placeholderCollections().find(
-    (c) => c.id === collectionId
-  )
+  const router = useRouter()
+  const { addToast, confirmToast } = useToast()
+  const [collection, setCollection] = useState<Collection | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  if (!collection) {
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { collectionId } = await params
+      try {
+        const data = await CollectionService.getById(collectionId)
+        if (!cancelled) setCollection(data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load collection')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [params])
+
+  const handleDelete = () => {
+    if (!collection) return
+    confirmToast('Delete this collection permanently?', async () => {
+      try {
+        await CollectionService.delete(collection.id)
+        addToast('Collection deleted', 'success')
+        router.push('/collections')
+      } catch {
+        addToast('Could not delete collection. Try again.', 'error')
+      }
+    })
+  }
+
+  /* ─── Loading skeleton ─── */
+  if (loading) {
     return (
-      <PageContainer>
-        <PageHeader
-          title="Collection not found"
-          description={`No collection found with ID: ${collectionId}`}
-          breadcrumbs={[
-            { label: 'Collections', href: '/collections' },
-            { label: 'Not Found' },
-          ]}
-        />
-      </PageContainer>
+      <DashboardLayout>
+        <div className="p-xl">
+          <div className="mb-lg">
+            <div className="h-4 w-40 animate-pulse rounded bg-surface-container-high" />
+            <div className="mt-md h-8 w-72 animate-pulse rounded bg-surface-container-high" />
+            <div className="mt-sm h-4 w-96 max-w-full animate-pulse rounded bg-surface-container-high" />
+          </div>
+          <div className="grid gap-lg lg:grid-cols-3">
+            <div className="h-64 animate-pulse rounded-xl bg-surface-container-high lg:col-span-2" />
+            <div className="h-48 animate-pulse rounded-xl bg-surface-container-high" />
+          </div>
+        </div>
+      </DashboardLayout>
     )
   }
 
-  const reports = placeholderReports().slice(0, 3)
+  /* ─── Not found / error ─── */
+  if (error || !collection) {
+    return (
+      <DashboardLayout>
+        <div className="flex h-full items-center justify-center p-xl">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-card max-w-md rounded-xl p-xl text-center"
+          >
+            <Icon size="44px" className="mx-auto mb-md text-outline">folder_open</Icon>
+            <h1 className="font-headline-md text-on-surface">Collection not found</h1>
+            <p className="mt-sm font-body-md text-on-surface-variant">
+              {error || 'No collection found with this ID.'}
+            </p>
+            <Link
+              href="/collections"
+              className="mt-lg inline-block rounded-lg bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90"
+            >
+              Back to Collections
+            </Link>
+          </motion.div>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
-    <PageContainer>
-      <PageHeader
-        title={collection.name}
-        description={collection.description}
-        breadcrumbs={[
-          { label: 'Collections', href: '/collections' },
-          { label: collection.name },
-        ]}
-        icon={FolderOpen}
-        actions={
-          <Button>
-            <Plus className="h-4 w-4" />
-            Add Reports
-          </Button>
-        }
-      />
+    <DashboardLayout>
+      <div className="custom-scrollbar p-xl">
+        {/* ─── Header ─── */}
+        <motion.div {...reveal} className="mb-xl">
+          <div className="mb-sm flex items-center gap-sm font-label-md text-on-surface-variant">
+            <Link href="/collections" className="transition-colors hover:text-on-surface">
+              Collections
+            </Link>
+            <Icon size="14px">chevron_right</Icon>
+            <span className="text-on-surface">{collection.name}</span>
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-md">
+            <div className="min-w-0">
+              <h1 className="font-headline-lg text-on-surface">{collection.name}</h1>
+              <p className="mt-sm font-body-md text-on-surface-variant">
+                {collection.description || 'No description provided.'}
+              </p>
+            </div>
+            <button
+              onClick={handleDelete}
+              className="flex shrink-0 items-center gap-sm rounded-lg border border-error/30 px-lg py-sm font-body-md font-bold text-error transition-colors hover:bg-error/10"
+            >
+              <Icon size="18px">delete</Icon>
+              Delete Collection
+            </button>
+          </div>
+        </motion.div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Reports list */}
-        <div className="lg:col-span-2">
-          <SectionCard
-            title="Reports"
-            description={`${collection.reportCount} reports in collection`}
-          >
-            {reports.length === 0 ? (
-              <EmptyState
-                title="No reports in this collection"
-                icon={FileText}
-                action={<Button variant="secondary" size="sm"><Plus className="h-4 w-4" />Add Reports</Button>}
-              />
-            ) : (
-              <div className="space-y-2">
-                {reports.map((report) => (
-                  <div
-                    key={report.id}
-                    className="flex items-center justify-between rounded-lg border border-surface-100 p-3 transition-colors hover:bg-surface-50"
+        <div className="grid gap-lg lg:grid-cols-3">
+          {/* ─── Main ─── */}
+          <motion.div {...reveal} className="lg:col-span-2">
+            <div className="glass-card rounded-xl p-lg">
+              <h2 className="mb-sm font-headline-md text-on-surface">Reports</h2>
+              <p className="mb-lg font-body-md text-on-surface-variant">
+                {collection.reportCount} {collection.reportCount === 1 ? 'report' : 'reports'} in collection
+              </p>
+              {collection.reportCount === 0 ? (
+                <div className="flex flex-col items-center gap-md py-16 text-center">
+                  <Icon size="40px" className="text-outline">folder_open</Icon>
+                  <p className="font-headline-md text-on-surface-variant">No reports yet</p>
+                  <p className="font-body-md text-on-surface-variant">
+                    Add reports from the Reports page to group them in this collection.
+                  </p>
+                  <Link
+                    href="/reports"
+                    className="mt-sm rounded-lg bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-100">
-                        <FileText className="h-4 w-4 text-surface-500" />
-                      </div>
-                      <div>
-                        <Link
-                          href={`/reports/${report.id}`}
-                          className="text-sm font-medium text-surface-900 hover:text-primary-600"
-                        >
-                          {report.title}
-                        </Link>
-                        <p className="text-xs text-surface-500">
-                          {report.author} &middot;{' '}
-                          {report.createdAt.slice(0, 10)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          report.status === 'ready' ? 'accent' : 'default'
-                        }
-                      >
-                        {report.status}
-                      </Badge>
-                      <button className="rounded p-1.5 text-surface-400 hover:bg-surface-100 hover:text-red-500">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    Browse Reports
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-md py-16 text-center">
+                  <Icon size="40px" className="text-primary">description</Icon>
+                  <p className="font-headline-md text-on-surface">
+                    {collection.reportCount} {collection.reportCount === 1 ? 'report' : 'reports'}
+                  </p>
+                  <p className="font-body-md text-on-surface-variant">
+                    Manage report membership from the Reports page.
+                  </p>
+                  <Link
+                    href="/reports"
+                    className="mt-sm rounded-lg bg-primary px-lg py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90"
+                  >
+                    Open Reports
+                  </Link>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* ─── Sidebar ─── */}
+          <motion.div {...reveal} className="space-y-lg">
+            <div className="glass-card rounded-xl p-lg">
+              <h2 className="mb-lg font-headline-md text-on-surface">Collection Info</h2>
+              <div className="space-y-md">
+                {[
+                  { label: 'Created', value: collection.createdAt ? collection.createdAt.slice(0, 10) : '—' },
+                  { label: 'Updated', value: collection.updatedAt ? collection.updatedAt.slice(0, 10) : '—' },
+                  { label: 'Reports', value: String(collection.reportCount) },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <span className="font-label-md text-on-surface-variant">{row.label}</span>
+                    <span className="font-body-md font-bold text-on-surface">{row.value}</span>
                   </div>
                 ))}
               </div>
-            )}
-          </SectionCard>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <SectionCard title="Collection Info">
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-surface-500">Created</span>
-                <span className="text-surface-700">
-                  {collection.createdAt.slice(0, 10)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-surface-500">Updated</span>
-                <span className="text-surface-700">
-                  {collection.updatedAt.slice(0, 10)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-surface-500">Reports</span>
-                <span className="text-surface-700">
-                  {collection.reportCount}
-                </span>
-              </div>
             </div>
-          </SectionCard>
-
-          <SectionCard title="Actions">
-            <div className="space-y-2">
-              <Button className="w-full" size="sm">
-                <Plus className="h-4 w-4" />
-                Add Reports
-              </Button>
-              <Button variant="secondary" className="w-full" size="sm">
-                Open in Compare
-              </Button>
-              <Button variant="ghost" className="w-full" size="sm">
-                <Trash2 className="h-4 w-4 text-red-500" />
-                <span className="text-red-500">Delete Collection</span>
-              </Button>
-            </div>
-          </SectionCard>
+          </motion.div>
         </div>
       </div>
-    </PageContainer>
+    </DashboardLayout>
   )
 }

@@ -2,6 +2,245 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════
+   THEME TOKENS
+   Resolved at runtime via data-theme / data-accent on <html>. Values are
+   space-separated RGB so tailwind opacity modifiers (bg-primary/20) work.
+   "obsidian" is the default (original design values).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme='obsidian'] {
+  --primary: 192 193 255;
+  --on-primary: 16 0 169;
+  --primary-container: 128 131 255;
+  --on-primary-container: 13 0 150;
+  --primary-fixed: 225 224 255;
+  --primary-fixed-dim: 192 193 255;
+  --on-primary-fixed: 7 0 108;
+  --on-primary-fixed-variant: 47 46 190;
+
+  --secondary: 221 183 255;
+  --on-secondary: 73 0 128;
+  --secondary-container: 111 0 190;
+  --on-secondary-container: 214 169 255;
+  --secondary-fixed: 240 219 255;
+  --secondary-fixed-dim: 221 183 255;
+  --on-secondary-fixed: 44 0 81;
+  --on-secondary-fixed-variant: 105 0 179;
+
+  --tertiary: 137 206 255;
+  --on-tertiary: 0 52 77;
+  --tertiary-container: 0 154 218;
+  --on-tertiary-container: 0 45 67;
+  --tertiary-fixed: 201 230 255;
+  --tertiary-fixed-dim: 137 206 255;
+  --on-tertiary-fixed: 0 30 47;
+  --on-tertiary-fixed-variant: 0 76 110;
+
+  --error: 255 180 171;
+  --on-error: 105 0 5;
+  --error-container: 147 0 10;
+  --on-error-container: 255 218 214;
+
+  --background: 19 19 21;
+  --on-background: 229 225 228;
+  --surface: 19 19 21;
+  --surface-dim: 19 19 21;
+  --surface-bright: 57 57 59;
+  --surface-container-lowest: 14 14 16;
+  --surface-container-low: 28 27 29;
+  --surface-container: 32 31 34;
+  --surface-container-high: 42 42 44;
+  --surface-container-highest: 53 52 55;
+  --surface-variant: 53 52 55;
+  --on-surface: 229 225 228;
+  --on-surface-variant: 199 196 215;
+
+  --outline: 144 143 160;
+  --outline-variant: 70 69 84;
+
+  --inverse-surface: 229 225 228;
+  --inverse-on-surface: 49 48 50;
+  --inverse-primary: 73 75 214;
+  --surface-tint: 192 193 255;
+
+  /* non-color tokens (glass surfaces, scrollbars) */
+  --glass-bg: rgba(9, 9, 11, 0.8);
+  --glass-border: #27272a;
+  --glass-hl1: rgba(192, 193, 255, 0.2);
+  --glass-hl2: rgba(221, 183, 255, 0.05);
+  --ai-glow: rgba(192, 193, 255, 0.05);
+  --input-glow: rgba(128, 131, 255, 0.4);
+  --scroll-track: #0e0e10;
+  --scroll-thumb: #353437;
+  --scroll-thumb-hover: #464554;
+}
+
+[data-theme='zinc'] {
+  --primary: 161 161 170;
+  --on-primary: 24 24 27;
+  --primary-container: 90 90 100;
+  --on-primary-container: 224 224 232;
+  --primary-fixed: 228 228 236;
+  --primary-fixed-dim: 161 161 170;
+  --on-primary-fixed: 24 24 27;
+  --on-primary-fixed-variant: 90 90 100;
+
+  --background: 24 24 27;
+  --on-background: 228 228 231;
+  --surface: 24 24 27;
+  --surface-dim: 24 24 27;
+  --surface-bright: 57 57 63;
+  --surface-container-lowest: 16 16 19;
+  --surface-container-low: 32 32 36;
+  --surface-container: 38 38 42;
+  --surface-container-high: 48 48 52;
+  --surface-container-highest: 56 56 61;
+  --surface-variant: 56 56 61;
+  --on-surface: 228 228 231;
+  --on-surface-variant: 196 196 202;
+
+  --outline: 148 148 158;
+  --outline-variant: 72 72 80;
+
+  --inverse-surface: 228 228 231;
+  --inverse-on-surface: 32 32 36;
+  --inverse-primary: 80 80 90;
+  --surface-tint: 161 161 170;
+
+  --glass-bg: rgba(24, 24, 27, 0.8);
+  --glass-border: #2a2a2e;
+  --glass-hl1: rgba(161, 161, 170, 0.18);
+  --glass-hl2: rgba(161, 161, 170, 0.04);
+  --ai-glow: rgba(161, 161, 170, 0.06);
+  --input-glow: rgba(161, 161, 170, 0.4);
+  --scroll-track: #101012;
+  --scroll-thumb: #38383d;
+  --scroll-thumb-hover: #4a4a52;
+}
+
+[data-theme='crystal'] {
+  --primary: 63 63 178;
+  --on-primary: 255 255 255;
+  --primary-container: 224 224 255;
+  --on-primary-container: 0 0 95;
+  --primary-fixed: 224 224 255;
+  --primary-fixed-dim: 192 192 255;
+  --on-primary-fixed: 0 0 95;
+  --on-primary-fixed-variant: 60 60 140;
+
+  --secondary: 105 0 179;
+  --on-secondary: 255 255 255;
+  --secondary-container: 240 219 255;
+  --on-secondary-container: 49 0 89;
+  --secondary-fixed: 240 219 255;
+  --secondary-fixed-dim: 221 183 255;
+  --on-secondary-fixed: 49 0 89;
+  --on-secondary-fixed-variant: 105 0 179;
+
+  --tertiary: 0 108 148;
+  --on-tertiary: 255 255 255;
+  --tertiary-container: 201 230 255;
+  --on-tertiary-container: 0 52 77;
+  --tertiary-fixed: 201 230 255;
+  --tertiary-fixed-dim: 137 206 255;
+  --on-tertiary-fixed: 0 52 77;
+  --on-tertiary-fixed-variant: 0 76 110;
+
+  --error: 186 26 26;
+  --on-error: 255 255 255;
+  --error-container: 255 218 214;
+  --on-error-container: 65 0 2;
+
+  --background: 248 249 252;
+  --on-background: 28 27 33;
+  --surface: 250 250 253;
+  --surface-dim: 220 220 226;
+  --surface-bright: 255 255 255;
+  --surface-container-lowest: 255 255 255;
+  --surface-container-low: 244 244 249;
+  --surface-container: 238 238 244;
+  --surface-container-high: 231 231 239;
+  --surface-container-highest: 225 225 234;
+  --surface-variant: 225 225 234;
+  --on-surface: 28 27 33;
+  --on-surface-variant: 70 70 82;
+
+  --outline: 116 116 128;
+  --outline-variant: 196 196 208;
+
+  --inverse-surface: 48 48 54;
+  --inverse-on-surface: 228 228 234;
+  --inverse-primary: 192 192 255;
+  --surface-tint: 63 63 178;
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-hl1: rgba(63, 63, 178, 0.14);
+  --glass-hl2: rgba(63, 63, 178, 0.04);
+  --ai-glow: rgba(63, 63, 178, 0.08);
+  --input-glow: rgba(63, 63, 178, 0.35);
+  --scroll-track: #e9e9ee;
+  --scroll-thumb: #c4c4cf;
+  --scroll-thumb-hover: #b0b0bd;
+}
+
+/* ─── Accent overrides — primary group only, works on any theme ─── */
+
+[data-accent='#ddb7ff'] {
+  --primary: 221 183 255;
+  --on-primary: 73 0 128;
+  --primary-container: 179 138 217;
+  --on-primary-container: 44 0 81;
+  --primary-fixed-dim: 221 183 255;
+  --surface-tint: 221 183 255;
+}
+
+[data-accent='#89ceff'] {
+  --primary: 137 206 255;
+  --on-primary: 0 52 77;
+  --primary-container: 90 158 214;
+  --on-primary-container: 0 45 67;
+  --primary-fixed-dim: 137 206 255;
+  --surface-tint: 137 206 255;
+}
+
+[data-accent='#ffb4ab'] {
+  --primary: 255 180 171;
+  --on-primary: 105 0 5;
+  --primary-container: 227 150 140;
+  --on-primary-container: 89 0 2;
+  --primary-fixed-dim: 255 180 171;
+  --surface-tint: 255 180 171;
+}
+
+[data-accent='#4ade80'] {
+  --primary: 74 222 128;
+  --on-primary: 5 46 21;
+  --primary-container: 38 176 94;
+  --on-primary-container: 2 40 16;
+  --primary-fixed-dim: 74 222 128;
+  --surface-tint: 74 222 128;
+}
+
+/* ─── High-density mode — compress the most common spacing utilities ───
+   ponytail: covers the core spacing set, not every utility. If pages start
+   adding exotic spacing classes this needs extending. */
+
+[data-density='high'] .p-xl { padding: 24px; }
+[data-density='high'] .px-xl { padding-left: 24px; padding-right: 24px; }
+[data-density='high'] .py-xl { padding-top: 24px; padding-bottom: 24px; }
+[data-density='high'] .p-lg { padding: 16px; }
+[data-density='high'] .px-lg { padding-left: 16px; padding-right: 16px; }
+[data-density='high'] .py-lg { padding-top: 16px; padding-bottom: 16px; }
+[data-density='high'] .p-md { padding: 12px; }
+[data-density='high'] .px-md { padding-left: 12px; padding-right: 12px; }
+[data-density='high'] .py-md { padding-top: 10px; padding-bottom: 10px; }
+[data-density='high'] .gap-xl { gap: 24px; }
+[data-density='high'] .gap-lg { gap: 16px; }
+[data-density='high'] .gap-md { gap: 12px; }
+
 @layer base {
   body {
     @apply bg-background text-on-background antialiased;
@@ -15,9 +254,9 @@
 
 @layer components {
   .glass-card {
-    background: rgba(9, 9, 11, 0.8);
+    background: var(--glass-bg);
     backdrop-filter: blur(20px);
-    border: 1px solid #27272a;
+    border: 1px solid var(--glass-border);
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -31,7 +270,7 @@
     right: 0;
     bottom: 0;
     border: 1px solid transparent;
-    background: linear-gradient(135deg, rgba(192, 193, 255, 0.2), rgba(221, 183, 255, 0.05)) border-box;
+    background: linear-gradient(135deg, var(--glass-hl1), var(--glass-hl2)) border-box;
     -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: destination-out;
     mask-composite: exclude;
@@ -39,18 +278,18 @@
   }
 
   .glass-card-hover {
-    background: rgba(20, 20, 22, 0.6);
+    background: var(--glass-bg);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(39, 39, 42, 0.5);
+    border: 1px solid var(--glass-border);
     transition: all 0.3s ease;
   }
 
   .glass-card-hover:hover {
-    border-color: rgba(192, 193, 255, 0.3);
+    border-color: var(--glass-hl1);
   }
 
   .ai-glow {
-    box-shadow: 0 0 20px rgba(192, 193, 255, 0.05);
+    box-shadow: 0 0 20px var(--ai-glow);
   }
 
   .ai-gradient-border {
@@ -77,26 +316,26 @@
 
 @layer utilities {
   .input-glow:focus-within {
-    box-shadow: 0 0 12px -2px rgba(128, 131, 255, 0.4);
+    box-shadow: 0 0 12px -2px var(--input-glow);
   }
 
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: #0e0e10;
+    background: var(--scroll-track);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #353437;
+    background: var(--scroll-thumb);
     border-radius: 10px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #464554;
+    background: var(--scroll-thumb-hover);
   }
 
   .scrollbar-custom {
     scrollbar-width: thin;
-    scrollbar-color: #353437 transparent;
+    scrollbar-color: var(--scroll-thumb) transparent;
   }
   .scrollbar-custom::-webkit-scrollbar {
     width: 4px;
@@ -106,11 +345,11 @@
     background: transparent;
   }
   .scrollbar-custom::-webkit-scrollbar-thumb {
-    background-color: #353437;
+    background-color: var(--scroll-thumb);
     border-radius: 10px;
   }
   .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-    background-color: #464554;
+    background-color: var(--scroll-thumb-hover);
   }
 }
 

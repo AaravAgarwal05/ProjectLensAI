@@ -41,8 +41,8 @@ class JSONColumn(TypeDecorator):
 
 DEFAULT_PREFERENCES = {
     "chunking_strategy": "heading_aware",
-    "llm_provider": "ollama",
-    "llm_model": "gemma3:1b",
+    "llm_provider": "opencode_zen",
+    "llm_model": "deepseek-v4-flash-free",
     "retrieval_strategy": "hybrid",
     "embedding_provider": "ollama",
     "chunk_size": 1000,

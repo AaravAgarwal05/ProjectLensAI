@@ -26,6 +26,8 @@ from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.prompt_builder import PromptBuilder
 from src.ai_core.llm.providers.google import GoogleProvider
 from src.ai_core.llm.providers.ollama import OllamaProvider
+from src.ai_core.llm.providers.opencode_zen import OpenCodeZenProvider
+from src.ai_core.tracing.models import RequestTrace
 from src.api.dependencies import get_current_user, get_db
 from src.api.rate_limiter import limiter
 from src.database.models import User
@@ -93,12 +95,16 @@ def _build_orchestrator(
         llm_config = LLMConfiguration()
         if llm_config.provider == "ollama":
             llm_config = llm_config.merge({"base_url": _s.ollama_base_url, "model_name": "llama3.2:1b"})
+        if llm_config.provider == "opencode_zen":
+            llm_config = llm_config.merge({"base_url": "https://opencode.ai/zen/v1", "model_name": "deepseek-v4-flash-free"})
         if model_name:
             llm_config = llm_config.merge({"model_name": model_name})
 
         # Instantiate the right provider based on config
         if llm_config.provider == "google":
             llm_provider = GoogleProvider(config=llm_config)
+        elif llm_config.provider == "opencode_zen":
+            llm_provider = OpenCodeZenProvider(config=llm_config)
         else:
             llm_provider = OllamaProvider(config=llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
@@ -128,7 +134,7 @@ def _build_orchestrator(
 
 
 def _build_retrieve_chunks() -> (
-    callable[[str, list[str], int], Awaitable[list[ContextChunk]]] | None
+    callable[[str, list[str], int, Any], Awaitable[list[ContextChunk]]] | None
 ):
     """Build an async callable that embeds a query and retrieves ContextChunks from ChromaDB.
 
@@ -173,7 +179,9 @@ def _build_retrieve_chunks() -> (
                     _mmr = False
             return _mmr if _mmr is not False else None
 
-        async def retrieve(query: str, report_ids: list[str], top_k: int) -> list[ContextChunk]:
+        async def retrieve(
+            query: str, report_ids: list[str], top_k: int, trace: Any | None = None
+        ) -> list[ContextChunk]:
             """Embed *query*, search each report collection, return ContextChunks."""
             import time
 
@@ -183,6 +191,9 @@ def _build_retrieve_chunks() -> (
             rag = RAGChatService(chroma_host=chroma_host, chroma_port=chroma_port, top_k=top_k)
             query_vec = await rag._embed_with_cache(query)  # noqa: SLF001
             embed_ms = (time.monotonic() - _t_embed) * 1000
+            if trace is not None:
+                trace.embed_ms = embed_ms
+                trace.cache_hit = bool(getattr(rag, "_last_cache_hit", False))
 
             _t_query = time.monotonic()
             all_chunks: list[ContextChunk] = []
@@ -223,6 +234,7 @@ def _build_retrieve_chunks() -> (
             # ── BM25 keyword leg — catch exact-match hits vector search may miss ──
             from src.ai_core.retrieval.providers.hybrid import _BM25Okapi
 
+            _t_bm25 = time.monotonic()
             bm25_total_added = 0
             for rid in report_ids:
                 try:
@@ -267,6 +279,7 @@ def _build_retrieve_chunks() -> (
                     continue
             # ponytail: collection.get() fetches all docs; ok for small collections (<5K chunks).
             # If collections grow, swap to batched get() + persisted BM25 index per report.
+            bm25_ms = (time.monotonic() - _t_bm25) * 1000
 
             if not all_chunks:
                 return []
@@ -304,6 +317,12 @@ def _build_retrieve_chunks() -> (
                 except Exception:
                     logger.debug("MMR reranking skipped", exc_info=True)
             mmr_ms = (time.monotonic() - _t_mmr) * 1000
+
+            if trace is not None:
+                trace.vector_search_ms = query_ms
+                trace.bm25_ms = bm25_ms
+                trace.cross_encoder_ms = ce_ms
+                trace.mmr_ms = mmr_ms
 
             logger.info(
                 "[RETRIEVE_TRACE] query=%.50s embed=%dms query=%dms bm25=%d ce=%dms mmr=%dms total=%d chunks=%d",
@@ -634,19 +653,23 @@ async def send_message(
 
         if use_orchestrator:
             # Orchestrator handles persistence internally — skip manual save
+            trace = RequestTrace(user_id=str(user.id), session_id=session_id)
+
             async def _retrieve_and_budget(
                 query: str,
                 rids: list[str],
                 top_k: int,
+                trace: Any | None = None,
             ) -> list[ContextChunk]:
                 assert retrieve_chunks is not None  # noqa: S101
-                return await retrieve_chunks(query, rids, top_k)
+                return await retrieve_chunks(query, rids, top_k, trace)
 
             try:
                 assistant_msg_model, citation_refs = await orchestrator.process_message(
                     session_id=session_id,
                     user_message=body.message,
                     retrieve_chunks=_retrieve_and_budget,
+                    request_trace=trace,
                 )
                 citations_out = [
                     CitationRefOut(
@@ -673,7 +696,10 @@ async def send_message(
                 content=body.message,
             )
             rag = _get_rag_service()
-            ai_content, raw_citations = await rag.answer(body.message, report_ids)
+            fallback_trace = RequestTrace(user_id=str(user.id), session_id=session_id)
+            ai_content, raw_citations = await rag.answer(
+                body.message, report_ids, trace=fallback_trace
+            )
             citations_out = [CitationRefOut(**c) for c in raw_citations]
             assistant_msg = await msg_mgr.create_message(
                 session_id=session_id,
@@ -720,13 +746,16 @@ async def _stream_events(
         yield f"data: {json.dumps({'type': 'error', 'message': 'AI engine not available'})}\n\n"
         return
 
+    trace = RequestTrace(session_id=session_id)
+
     async def _retrieve_and_budget(
         query: str,
         rids: list[str],
         top_k: int,
+        trace: Any | None = None,
     ) -> list[ContextChunk]:
         assert retrieve_chunks is not None  # noqa: S101
-        return await retrieve_chunks(query, rids, top_k)
+        return await retrieve_chunks(query, rids, top_k, trace)
 
     try:
         full_text: list[str] = []
@@ -734,6 +763,7 @@ async def _stream_events(
             session_id=session_id,
             user_message=message,
             retrieve_chunks=_retrieve_and_budget,
+            request_trace=trace,
         ):
             if chunk.text:
                 full_text.append(chunk.text)

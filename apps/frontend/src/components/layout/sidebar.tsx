@@ -5,19 +5,20 @@ import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Icon } from '@/components/shared/icon'
 import { useSidebarStore } from '@/stores/sidebar-store'
+import { useAuthStore } from '@/stores/auth-store'
 
 const navItems = [
   { href: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
   { href: '/reports', icon: 'description', label: 'Reports' },
   { href: '/collections', icon: 'database', label: 'Collections' },
   { href: '/chat', icon: 'chat_bubble', label: 'Chat' },
-  { href: '/benchmarks', icon: 'speed', label: 'Benchmarks' },
   { href: '/settings', icon: 'settings', label: 'Settings' },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const { isOpen, setOpen } = useSidebarStore()
+  const user = useAuthStore((s) => s.user)
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
@@ -25,31 +26,52 @@ export function Sidebar() {
   }
 
   return (
-    <motion.aside
-      className="fixed left-0 top-0 z-50 flex h-full w-[240px] flex-col gap-sm border-r border-outline-variant bg-surface-container-lowest p-md"
-      animate={{ x: isOpen ? 0 : -240 }}
-      transition={{ duration: 0.3, ease: 'easeInOut' }}
-    >
-      {/* Logo */}
-      <div className="mb-lg flex items-center gap-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded bg-primary">
-          <Icon fill className="text-on-primary" size="20px">
-            lens
-          </Icon>
+    <>
+      {/* Open tab — shown only when sidebar is closed */}
+      {!isOpen && (
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Open sidebar"
+          className="fixed left-0 top-4 z-50 flex h-12 w-12 items-center justify-center rounded-r-lg border border-l-0 border-outline-variant bg-surface-container-lowest text-on-surface-variant shadow-lg transition-colors hover:bg-surface-container-high hover:text-on-surface"
+        >
+          <Icon size="24px">menu</Icon>
+        </button>
+      )}
+
+      <motion.aside
+        className="fixed left-0 top-0 z-50 flex h-full w-[240px] flex-col gap-sm border-r border-outline-variant bg-surface-container-lowest p-md"
+        animate={{ x: isOpen ? 0 : -240 }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+      >
+        {/* Header: logo + close */}
+        <div className="mb-lg flex items-start gap-sm">
+          <div className="flex flex-1 items-center gap-sm">
+            <img
+              src="/Logo.png"
+              alt="ProjectLens AI"
+              className="h-9 w-9 rounded-full object-cover"
+            />
+            <div>
+              <h1 className="font-logo text-headline-md font-semibold leading-none text-primary">
+                ProjectLens AI
+              </h1>
+              <p className="mt-1 font-label-md text-[10px] uppercase tracking-widest text-outline">
+                Precision Intelligence
+              </p>
+            </div>
+          </div>
+          {/* Close button */}
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Close sidebar"
+            className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+          >
+            <Icon size="20px">close</Icon>
+          </button>
         </div>
-        <div>
-          <h1 className="font-display text-headline-md font-bold leading-none text-primary">
-            ProjectLens AI
-          </h1>
-          <p className="mt-1 font-label-md text-[10px] uppercase tracking-widest text-outline">
-            Precision Intelligence
-          </p>
-        </div>
-      </div>
 
       {/* New Analysis */}
       <button
-        onClick={() => setOpen(false)}
         className="mb-md flex w-full items-center justify-center gap-2 rounded bg-primary py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90"
       >
         <Icon size="18px">add</Icon>
@@ -102,21 +124,26 @@ export function Sidebar() {
 
         {/* User profile */}
         <div className="mt-md flex items-center gap-sm px-sm py-sm">
-          <div className="h-8 w-8 overflow-hidden rounded-full border border-outline-variant bg-surface-variant">
-            <img
-              className="h-full w-full object-cover"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJbe6zybhOXXzsG_Ct2Hx163Ao3M82DmLaSzR_33nnrWHxwPhYWevjvTtA29v_6YyZ_qyhaF6ohIZvvrSFLZDH_OsZrQI-id6PQxv8ThZghp_fR14hUqRFG-7s7X1CRpgof0fpwaOQJfniI9Eo1pk6NHEiVI6ao6Ew38syBZCZ-qRooOefMh3V0Te5XtTUFv9OibUfgLzwsQjvLO1aHpnqpbzsmljeMUH8k5djvFbvNhIkeEnyAQTjx9S8PVWhdckXePxHaH5pgJd3"
-              alt="User avatar"
-            />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-outline-variant bg-surface-variant font-label-md text-xs font-bold text-on-surface-variant">
+            {(user?.name || user?.email || 'U')
+              .split(' ')
+              .map((n) => n[0])
+              .filter(Boolean)
+              .slice(0, 2)
+              .join('')
+              .toUpperCase()}
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-bold text-on-surface">Alex Chen</span>
-            <span className="font-label-md text-[10px] text-on-surface-variant">
-              System Admin
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-xs font-bold text-on-surface">
+              {user?.name || 'Guest'}
+            </span>
+            <span className="truncate font-label-md text-[10px] text-on-surface-variant">
+              {user?.email || 'Not signed in'}
             </span>
           </div>
         </div>
       </div>
-    </motion.aside>
+      </motion.aside>
+    </>
   )
 }

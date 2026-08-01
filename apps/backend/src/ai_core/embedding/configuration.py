@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -38,8 +39,18 @@ class EmbeddingConfiguration:
 
     @classmethod
     def default(cls) -> EmbeddingConfiguration:
-        """Return a default configuration."""
-        return cls()
+        """Return a default configuration.
+
+        The Ollama base URL is derived from ``OLLAMA_HOST``/``OLLAMA_PORT``
+        env vars (set by docker-compose) so the pipeline reaches Ollama
+        when the backend runs in a container.
+        """
+        cfg = cls()
+        cfg.ollama_base_url = (
+            f"http://{os.environ.get('OLLAMA_HOST', 'localhost')}:"
+            f"{os.environ.get('OLLAMA_PORT', '11434')}"
+        )
+        return cfg
 
     def merge(self, overrides: dict[str, Any]) -> EmbeddingConfiguration:
         """Return a new configuration with *overrides* applied."""

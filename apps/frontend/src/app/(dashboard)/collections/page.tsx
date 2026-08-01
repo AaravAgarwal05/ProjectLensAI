@@ -1,14 +1,18 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
+import { CollectionService } from '@/services/collections'
+import type { Collection } from '@/types'
 
 /* ─── animation helpers ─── */
 
 const containerVariants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.07 } },
+  show: { transition: { staggerChildren: 0.06 } },
 }
 
 const itemVariants = {
@@ -16,151 +20,72 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' as const } },
 }
 
-const simpleReveal = {
-  initial: { opacity: 0, y: 20 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true },
-  transition: { duration: 0.45, ease: 'easeOut' as const },
-}
+/* ─── helpers ─── */
 
-/* ─── data ─── */
-
-type CardTheme = 'primary' | 'secondary' | 'tertiary'
-
-interface CollectionCard {
-  name: string
-  icon: string
-  theme: CardTheme
-  description: string
-  reportCount: number
-  time: string
-  dashed?: boolean
-}
-
-const collections: CollectionCard[] = [
-  {
-    name: 'System Latency Logs',
-    icon: 'folder',
-    theme: 'primary',
-    description:
-      'Historical benchmarking data for real-time inference optimization across edge nodes.',
-    reportCount: 12,
-    time: '2h ago',
-  },
-  {
-    name: 'Model Drift Analysis',
-    icon: 'folder_special',
-    theme: 'secondary',
-    description:
-      'Tracking accuracy degradation in fine-tuned LLM checkpoints over Q3 production cycles.',
-    reportCount: 8,
-    time: 'Yesterday',
-  },
-  {
-    name: 'Compliance Audits',
-    icon: 'folder_open',
-    theme: 'tertiary',
-    description:
-      'Empty collection. Start adding data security reports and bias assessments here.',
-    reportCount: 0,
-    time: 'Sept 12',
-    dashed: true,
-  },
-  {
-    name: 'Semantic Mapping',
-    icon: 'topic',
-    theme: 'primary',
-    description:
-      'Vector database performance metrics and cluster visualization exports.',
-    reportCount: 24,
-    time: '3d ago',
-  },
-  {
-    name: 'Archived Experiments',
-    icon: 'folder_zip',
-    theme: 'secondary',
-    description:
-      'Legacy model evaluations from the prototype phase (Pre-deployment).',
-    reportCount: 54,
-    time: '1mo ago',
-  },
-]
-
-/* ─── theme helpers ─── */
-
-const themeColors: Record<CardTheme, { iconBg: string; iconColor: string; iconBorder: string; hoverBg: string }> = {
-  primary: {
-    iconBg: 'bg-primary/10',
-    iconColor: 'text-primary',
-    iconBorder: 'border-primary/20',
-    hoverBg: 'group-hover:bg-primary/15',
-  },
-  secondary: {
-    iconBg: 'bg-secondary/10',
-    iconColor: 'text-secondary',
-    iconBorder: 'border-secondary/20',
-    hoverBg: 'group-hover:bg-secondary/15',
-  },
-  tertiary: {
-    iconBg: 'bg-tertiary/10',
-    iconColor: 'text-tertiary',
-    iconBorder: 'border-tertiary/20',
-    hoverBg: 'group-hover:bg-tertiary/15',
-  },
+function timeAgo(dateStr: string): string {
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return ''
+  const sec = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (sec < 60) return 'Just now'
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  const d = Math.floor(hr / 24)
+  if (d < 30) return `${d}d ago`
+  const mo = Math.floor(d / 30)
+  return mo < 12 ? `${mo}mo ago` : `${Math.floor(mo / 12)}y ago`
 }
 
 /* ─── Collection Card ─── */
 
-function CollectionCard({ card }: { card: CollectionCard }) {
-  const t = themeColors[card.theme]
-  const borderStyle = card.dashed
-    ? 'border-dashed border-2 opacity-60 hover:opacity-100'
-    : ''
+function CollectionCard({ collection, index }: { collection: Collection; index: number }) {
+  const themes = [
+    'bg-primary/10 border-primary/20 text-primary',
+    'bg-secondary/10 border-secondary/20 text-secondary',
+    'bg-tertiary/10 border-tertiary/20 text-tertiary',
+    'bg-primary/10 border-primary/20 text-primary',
+  ]
+  const t = themes[index % themes.length]
 
   return (
-    <motion.div variants={itemVariants} className="relative">
-      <div
-        className={`glass-card group flex flex-col p-md rounded-xl relative cursor-pointer transition-all duration-300
-          hover:border-[rgba(192,193,255,0.4)] hover:bg-[rgba(14,14,16,0.9)] hover:-translate-y-0.5
-          ${borderStyle}`}
+    <motion.div variants={itemVariants}>
+      <a
+        href={`/collections/${collection.id}`}
+        className="glass-card group flex flex-col rounded-xl border border-outline-variant p-lg transition-all duration-300 hover:-translate-y-0.5 hover:border-[rgba(192,193,255,0.4)] hover:bg-[rgba(14,14,16,0.9)]"
       >
         {/* Top row */}
-        <div className="flex justify-between items-start mb-lg">
+        <div className="mb-lg flex items-start justify-between">
           <div
-            className={`w-12 h-12 rounded-lg border flex items-center justify-center transition-colors ${t.iconBorder} ${t.iconBg} ${t.hoverBg}`}
+            className={`flex h-12 w-12 items-center justify-center rounded-lg border ${t}`}
           >
-            <Icon className={t.iconColor}>{card.icon}</Icon>
+            <Icon size="22px">folder</Icon>
           </div>
-
-          {/* Hover actions */}
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button className="p-1.5 rounded hover:bg-surface-container-high text-on-surface-variant transition-colors">
-              <Icon size="16px">edit</Icon>
-            </button>
-            <button className="p-1.5 rounded hover:bg-surface-container-high text-on-surface-variant transition-colors">
-              <Icon size="16px">delete</Icon>
-            </button>
-          </div>
+          <span className="rounded-full bg-surface-container-high px-sm py-0.5 font-label-md text-on-surface-variant">
+            {collection.reportCount} {collection.reportCount === 1 ? 'report' : 'reports'}
+          </span>
         </div>
 
         {/* Body */}
         <div className="flex-1">
-          <h3 className="font-headline-md text-on-surface mb-xs">{card.name}</h3>
-          <p className="text-on-surface-variant text-body-md line-clamp-2">{card.description}</p>
+          <h3 className="mb-xs font-headline-md text-on-surface group-hover:text-primary transition-colors">
+            {collection.name}
+          </h3>
+          <p className="line-clamp-2 font-body-md text-on-surface-variant">
+            {collection.description || 'No description provided.'}
+          </p>
         </div>
 
         {/* Footer */}
-        <div className="mt-xl pt-md border-t border-outline-variant flex justify-between">
-          <span
-            className={`font-label-md text-code-sm ${card.reportCount > 0 ? 'text-primary' : 'text-on-surface-variant'}`}
-          >
-            {card.reportCount} reports
+        <div className="mt-xl flex items-center justify-between border-t border-outline-variant pt-md">
+          <span className="font-label-md text-outline">
+            {collection.updatedAt ? `Updated ${timeAgo(collection.updatedAt)}` : ''}
           </span>
-          <span className="font-label-md text-code-sm text-on-surface-variant opacity-60">
-            {card.time}
-          </span>
+          <Icon size="16px" className="text-outline opacity-0 transition-opacity group-hover:opacity-100">
+            arrow_right_alt
+          </Icon>
         </div>
-      </div>
+      </a>
     </motion.div>
   )
 }
@@ -168,65 +93,65 @@ function CollectionCard({ card }: { card: CollectionCard }) {
 /* ─── Create Collection Button ─── */
 
 function CreateCollectionButton() {
+  const router = useRouter()
+  const [creating, setCreating] = useState(false)
+  const [name, setName] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const create = async () => {
+    const trimmed = name.trim()
+    if (!trimmed || creating) return
+    setCreating(true)
+    try {
+      const c = await CollectionService.create({ name: trimmed })
+      router.push(`/collections/${c.id}`)
+    } catch {
+      setCreating(false)
+    }
+  }
+
   return (
-    <motion.div variants={itemVariants} className="relative">
-      <button className="w-full border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center gap-md hover:bg-surface-container-high transition-all group min-h-[220px]">
-        <div className="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center transition-colors group-hover:border-primary group-hover:text-primary">
-          <Icon size="24px">add</Icon>
-        </div>
-        <span className="font-bold text-on-surface-variant transition-colors group-hover:text-on-surface">
-          Create Collection
-        </span>
-      </button>
-    </motion.div>
-  )
-}
-
-/* ─── AI Insight Banner ─── */
-
-function AiInsightBanner() {
-  return (
-    <motion.div
-      variants={itemVariants}
-      className="glass-card bg-primary-container/5 border-primary/20 overflow-hidden group col-span-1 md:col-span-2"
-    >
-      <div className="flex">
-        {/* Left: text content */}
-        <div className="w-1/2 p-lg flex flex-col justify-between">
-          <div>
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 px-2 py-1 rounded mb-md">
-              <Icon size="12px" className="text-primary">auto_awesome</Icon>
-              <span className="text-primary text-[10px] font-bold tracking-widest uppercase">AI Insight</span>
-            </div>
-
-            <h3 className="font-headline-md text-on-surface mb-md">Consolidate Latency Reports?</h3>
-            <p className="text-on-surface-variant text-body-md mb-lg">
-              High correlation detected between System Latency Logs and Network Stability
-              benchmarks. Combine into a unified performance analysis?
-            </p>
-          </div>
-
-          <div className="flex gap-md">
-            <button className="bg-primary text-on-primary font-bold text-code-sm px-md py-2 rounded-lg hover:opacity-90 transition-opacity">
-              Actionable View
+    <motion.div variants={itemVariants}>
+      {open ? (
+        <div className="glass-card flex h-full min-h-[220px] flex-col gap-md rounded-xl border border-primary/30 p-lg">
+          <p className="font-headline-md text-on-surface">Name your collection</p>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') create() }}
+            placeholder="e.g. Q4 Financial Reports"
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm font-body-md text-on-surface outline-none placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/50"
+          />
+          <div className="mt-auto flex gap-sm">
+            <button
+              onClick={create}
+              disabled={creating || !name.trim()}
+              className="flex-1 rounded-lg bg-primary py-sm font-body-md font-bold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {creating ? 'Creating…' : 'Create'}
             </button>
-            <button className="border border-outline-variant text-on-surface-variant font-bold text-code-sm px-md py-2 rounded-lg hover:bg-surface-container-high transition-colors">
-              Dismiss
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-outline-variant px-md py-sm font-body-md text-on-surface-variant transition-colors hover:bg-surface-container-high"
+            >
+              Cancel
             </button>
           </div>
         </div>
-
-        {/* Right: visual */}
-        <div className="w-1/2 bg-surface-container-highest flex items-end justify-center p-lg">
-          <div className="grid grid-cols-4 gap-2">
-            <div className="w-12 h-16 bg-primary border border-primary-container rounded-lg mt-0" />
-            <div className="w-12 h-12 bg-primary border border-primary-container rounded-lg mt-4" />
-            <div className="w-12 h-20 bg-primary border border-primary-container rounded-lg mt-0" />
-            <div className="w-12 h-14 bg-primary border border-primary-container rounded-lg mt-2" />
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex h-full min-h-[220px] w-full flex-col items-center justify-center gap-md rounded-xl border-2 border-dashed border-outline-variant transition-all group hover:border-primary/50 hover:bg-surface-container-high"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-outline-variant transition-colors group-hover:border-primary group-hover:text-primary">
+            <Icon size="24px">add</Icon>
           </div>
-        </div>
-      </div>
+          <span className="font-bold text-on-surface-variant transition-colors group-hover:text-on-surface">
+            Create Collection
+          </span>
+        </button>
+      )}
     </motion.div>
   )
 }
@@ -234,77 +159,110 @@ function AiInsightBanner() {
 /* ─── Page Component ─── */
 
 export default function CollectionsPage() {
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const data = await CollectionService.list({ limit: 100 })
+        if (!cancelled) setCollections(data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load collections')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
   return (
-    <DashboardLayout searchPlaceholder="Search collections, tags, or metadata...">
-      <div className="p-xl bg-surface relative">
-        <div className="max-w-[1440px] mx-auto">
-          {/* Background glow */}
-          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
+    <DashboardLayout>
+      <div className="custom-scrollbar relative p-xl">
+        {/* Background glow */}
+        <div className="pointer-events-none absolute right-0 top-0 -z-10 h-[600px] w-[600px] rounded-full bg-primary/5 blur-[120px]" />
 
-          {/* ─── Page Header ─── */}
-          <motion.div
-            className="flex justify-between items-end mb-xl"
-            {...simpleReveal}
-          >
-            <div>
-              <h1 className="font-headline-lg text-on-surface mb-xs">Collections</h1>
-              <p className="text-on-surface-variant max-w-xl">
-                Organize your AI analysis reports into thematic collections for faster retrieval
-                and cross-reference insights.
-              </p>
-            </div>
+        {/* ─── Page Header ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="mb-xl flex items-end justify-between"
+        >
+          <div>
+            <h1 className="font-headline-lg text-on-surface">Collections</h1>
+            <p className="mt-sm max-w-xl font-body-md text-on-surface-variant">
+              Organize your analysis reports into thematic collections for faster retrieval
+              and cross-reference insights.
+            </p>
+          </div>
+        </motion.div>
 
-            <div className="flex gap-2">
-              <button className="p-2 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
-                <Icon size="20px">filter_list</Icon>
+        {/* ─── Loading ─── */}
+        {loading && (
+          <div className="grid grid-cols-1 gap-lg md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="glass-card min-h-[220px] animate-pulse rounded-xl border border-outline-variant p-lg">
+                <div className="mb-lg h-12 w-12 rounded-lg bg-surface-container-high" />
+                <div className="h-5 w-3/4 rounded bg-surface-container-high" />
+                <div className="mt-md h-4 w-full rounded bg-surface-container-high" />
+                <div className="mt-sm h-4 w-2/3 rounded bg-surface-container-high" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ─── Error ─── */}
+        {error && !loading && (
+          <div className="flex items-center justify-center py-32">
+            <div className="glass-card max-w-md rounded-xl p-xl text-center">
+              <Icon className="mb-md text-error" size="40px">error_outline</Icon>
+              <h2 className="mb-sm font-headline-md text-on-surface">Failed to load collections</h2>
+              <p className="mb-lg font-body-md text-on-surface-variant">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-primary px-lg py-sm font-headline-md text-on-primary transition-colors hover:opacity-90"
+              >
+                Try Again
               </button>
-              <button className="p-2 border border-outline-variant rounded hover:bg-surface-container-high transition-colors text-on-surface-variant">
-                <Icon size="20px">grid_view</Icon>
-              </button>
             </div>
-          </motion.div>
+          </div>
+        )}
 
-          {/* ─── Grid ─── */}
+        {/* ─── Grid ─── */}
+        {!loading && !error && (
           <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-lg"
+            className="grid grid-cols-1 gap-lg md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             variants={containerVariants}
             initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
+            animate="show"
           >
-            {/* Collection Cards */}
-            {collections.map((card) => (
-              <CollectionCard key={card.name} card={card} />
+            {collections.map((c, i) => (
+              <CollectionCard key={c.id} collection={c} index={i} />
             ))}
-
-            {/* AI Insight Banner */}
-            <AiInsightBanner />
 
             {/* Create Collection Button */}
             <CreateCollectionButton />
           </motion.div>
-        </div>
+        )}
 
-        {/* ─── Footer Bar ─── */}
-        <motion.div
-          className="h-10 border-t border-outline-variant bg-surface-container-lowest px-xl flex items-center justify-between text-code-sm text-on-surface-variant mt-xl"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-        >
-          <div className="flex items-center gap-lg">
-            <span className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              API: Healthy
-            </span>
-            <span>Total Storage: 1.2GB / 10GB</span>
-          </div>
-          <span>Build v2.4.0-stable</span>
-        </motion.div>
+        {/* ─── Empty State ─── */}
+        {!loading && !error && collections.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center gap-md py-32 text-center"
+          >
+            <Icon size="48px" className="text-outline">folder_open</Icon>
+            <h2 className="font-headline-md text-on-surface">No collections yet</h2>
+            <p className="font-body-md text-on-surface-variant">
+              Create your first collection to organize reports by theme or department.
+            </p>
+          </motion.div>
+        )}
       </div>
     </DashboardLayout>
   )

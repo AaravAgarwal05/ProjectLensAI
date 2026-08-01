@@ -6,9 +6,22 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Icon } from '@/components/shared/icon'
 import { AuthService } from '@/services/auth'
+import { ChatService } from '@/services/chat'
+import { ReportService } from '@/services/reports'
 import { useAuthStore } from '@/stores/auth-store'
 import type { User } from '@/types'
 import { ApiError } from '@/lib/api'
+
+/* ─── activity item type ─── */
+
+interface ActivityItem {
+  id: string
+  icon: string
+  text: string
+  time: string
+  timeValue: number
+  color: string
+}
 
 /* ─── animation helpers ─── */
 
@@ -70,6 +83,7 @@ export default function DashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const loggingOutRef = useRef(false)
+  const [activity, setActivity] = useState<ActivityItem[]>([])
 
   useEffect(() => {
     if (user || loggingOutRef.current) return
@@ -89,6 +103,49 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false))
   }, [user, setUser, setLoading, resetAuth])
+
+  // Load real recent activity — recent chat sessions + reports, merged by date
+  useEffect(() => {
+    if (!user || isLoading) return
+    let cancelled = false
+
+    const load = async () => {
+      const items: ActivityItem[] = []
+      try {
+        const [sessions, reportResult] = await Promise.all([
+          ChatService.listSessions({ limit: 5 }),
+          ReportService.list({ page: 1, pageSize: 5 }),
+        ])
+        sessions.forEach((s) =>
+          items.push({
+            id: `chat-${s.id}`,
+            icon: 'chat_bubble',
+            text: s.title,
+            time: s.createdAt,
+            timeValue: new Date(s.createdAt).getTime(),
+            color: 'text-secondary',
+          })
+        )
+        reportResult.items.forEach((r) =>
+          items.push({
+            id: `report-${r.id}`,
+            icon: 'description',
+            text: r.title,
+            time: r.createdAt,
+            timeValue: new Date(r.createdAt).getTime(),
+            color: 'text-primary',
+          })
+        )
+        items.sort((a, b) => b.timeValue - a.timeValue)
+      } catch {
+        // swallow — activity is best-effort
+      }
+      if (!cancelled) setActivity(items)
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [user, isLoading])
 
   const handleLogout = useCallback(async () => {
     loggingOutRef.current = true
@@ -246,7 +303,7 @@ export default function DashboardPage() {
                   >
                     <div>
                       <p className="font-body-md text-on-surface">Password</p>
-                      <p className="font-label-md text-[10px] text-outline">Last changed 30 days ago</p>
+                      <p className="font-label-md text-[10px] text-outline">Update your account password</p>
                     </div>
                     <span className="rounded-lg border border-outline-variant px-md py-1 font-label-md text-primary transition-colors group-hover:bg-primary-container/20">
                       Update
@@ -258,7 +315,7 @@ export default function DashboardPage() {
                   >
                     <div>
                       <p className="font-body-md text-on-surface">Two-Factor Auth</p>
-                      <p className="font-label-md text-[10px] text-outline">Not enabled</p>
+                      <p className="font-label-md text-[10px] text-outline">Add an extra layer of security</p>
                     </div>
                     <span className="rounded-lg border border-outline-variant px-md py-1 font-label-md text-primary transition-colors group-hover:bg-primary-container/20">
                       Enable
@@ -270,7 +327,7 @@ export default function DashboardPage() {
                   >
                     <div>
                       <p className="font-body-md text-on-surface">Active Sessions</p>
-                      <p className="font-label-md text-[10px] text-outline">1 session</p>
+                      <p className="font-label-md text-[10px] text-outline">Review signed-in devices</p>
                     </div>
                     <span className="rounded-lg border border-outline-variant px-md py-1 font-label-md text-primary transition-colors group-hover:bg-primary-container/20">
                       Manage
@@ -317,34 +374,29 @@ export default function DashboardPage() {
             {/* ─── Recent Activity ─── */}
             <motion.div variants={itemVariants}>
               <div className="glass-card rounded-xl p-lg">
-                <div className="mb-md flex items-center justify-between">
-                  <div className="flex items-center gap-sm">
-                    <Icon className="text-primary" size="20px">history</Icon>
-                    <h3 className="font-display text-headline-sm text-on-surface">Recent Activity</h3>
+                <div className="mb-md flex items-center gap-sm">
+                  <Icon className="text-primary" size="20px">history</Icon>
+                  <h3 className="font-display text-headline-sm text-on-surface">Recent Activity</h3>
+                </div>
+                {activity.length === 0 ? (
+                  <p className="font-body-md text-on-surface-variant">
+                    No activity yet. Upload reports or start a chat to see activity here.
+                  </p>
+                ) : (
+                  <div className="space-y-sm">
+                    {activity.slice(0, 8).map((item) => (
+                      <div key={item.id} className="flex items-center gap-md rounded-lg bg-surface-container-low p-md">
+                        <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high ${item.color}`}>
+                          <Icon size="18px">{item.icon}</Icon>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body-md text-on-surface truncate">{item.text}</p>
+                          <p className="font-label-md text-[10px] text-outline">{formatDate(item.time)}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <Link
-                    href="/settings"
-                    className="font-label-md text-[11px] uppercase tracking-wider text-primary hover:underline"
-                  >
-                    View All
-                  </Link>
-                </div>
-                <div className="space-y-sm">
-                  {[
-                    { icon: 'person', text: 'Account created', time: formatDate(user.createdAt), color: 'text-primary' },
-                    { icon: 'login', text: 'Last login', time: 'Today', color: 'text-secondary' },
-                  ].map((activity, idx) => (
-                    <div key={idx} className="flex items-center gap-md rounded-lg bg-surface-container-low p-md">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high ${activity.color}`}>
-                        <Icon size="18px">{activity.icon}</Icon>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-body-md text-on-surface">{activity.text}</p>
-                        <p className="font-label-md text-[10px] text-outline">{activity.time}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

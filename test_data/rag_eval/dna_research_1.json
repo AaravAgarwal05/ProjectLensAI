@@ -1,0 +1,37 @@
+{
+  "document": "Research Paper on DNA ~ 1",
+  "document_path": "test_data/Research Paper on DNA ~ 1.pdf",
+  "topic": "dna_storage",
+  "queries": [
+    {
+      "id": "dna1_q1",
+      "query": "What is the theoretical maximum information density of DNA storage?",
+      "expected_topics": ["two bits per nucleotide", "455 exabytes per gram", "density", "ssDNA"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna1_q2",
+      "query": "What did the authors encode into DNA in this study?",
+      "expected_topics": ["book", "53,426 words", "11 JPG images", "JavaScript program", "5.27 megabit"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna1_q3",
+      "query": "How many oligonucleotides were used to encode the data and how large were they?",
+      "expected_topics": ["54,898", "159nt", "96-bit data block", "19-bit address"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna1_q4",
+      "query": "How was the DNA sequence read back and what was the error rate?",
+      "expected_topics": ["PCR", "Illumina HiSeq", "paired-end reads", "10 bit errors", "5.27 million"],
+      "expected_grounded": true
+    },
+    {
+      "id": "dna1_q5",
+      "query": "What encoding scheme does this method use to represent bits?",
+      "expected_topics": ["one bit per base", "A or C for zero", "G or T for one", "avoid GC content"],
+      "expected_grounded": true
+    }
+  ]
+}

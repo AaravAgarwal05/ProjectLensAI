@@ -104,10 +104,12 @@ export default function RegisterPage() {
     >
       {/* ─── Brand ─── */}
       <motion.div className="flex flex-col items-center mb-xl" variants={fadeUp}>
-        <div className="w-12 h-12 bg-primary-container rounded-lg flex items-center justify-center mb-md ai-glow">
-          <Icon fill size="28px" className="text-on-primary-container font-bold">filter_center_focus</Icon>
-        </div>
-        <h1 className="font-display text-headline-lg text-primary tracking-tight">ProjectLens AI</h1>
+        <img
+          src="/Logo.png"
+          alt="ProjectLens AI"
+          className="mb-md h-16 w-16 rounded-full object-cover ai-glow"
+        />
+        <h1 className="font-logo text-headline-lg text-primary tracking-tight">ProjectLens AI</h1>
         <p className="font-body-md text-on-surface-variant mt-xs">Precision Intelligence for Educators &amp; Students</p>
       </motion.div>
 

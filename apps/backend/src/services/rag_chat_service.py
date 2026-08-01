@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from typing import Any
 
 from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
@@ -17,6 +18,7 @@ from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.models import LLMRequest
 from src.ai_core.llm.providers.google import GoogleProvider
 from src.ai_core.llm.providers.ollama import OllamaProvider
+from src.ai_core.llm.providers.opencode_zen import OpenCodeZenProvider
 from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,11 @@ class RAGChatService:
         cfg = LLMConfiguration()
         if cfg.provider == "google":
             self._llm_provider = GoogleProvider(config=cfg)
+        elif cfg.provider == "opencode_zen":
+            self._llm_provider = OpenCodeZenProvider(config=LLMConfiguration(
+                base_url="https://opencode.ai/zen/v1",
+                model_name="deepseek-v4-flash-free",
+            ))
         else:
             self._llm_provider = OllamaProvider(config=LLMConfiguration(
                 base_url=_settings.ollama_base_url,
@@ -84,6 +91,7 @@ class RAGChatService:
         message: str,
         report_ids: list[str],
         trace_id: str | None = None,
+        trace: Any | None = None,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Generate an answer using RAG over the given report IDs.
 
@@ -95,6 +103,8 @@ class RAGChatService:
             Document report IDs to search.
         trace_id : str or None
             Optional request trace ID for log correlation.
+        trace : RequestTrace or None
+            Optional trace to stamp with coarse stage timings and persist.
 
         Returns
         -------
@@ -104,11 +114,16 @@ class RAGChatService:
         """
         tid = trace_id or self._make_trace_id()
         logger.info("[%s] RAG answer: %d reports, query=%s", tid, len(report_ids), message[:80])
+        t0 = time.monotonic()
 
         chunks = await self._retrieve_chunks(message, report_ids, trace_id=tid)
 
         if not chunks:
             logger.info("[%s] No relevant chunks found", tid)
+            if trace is not None:
+                trace.chunks_retrieved = 0
+                trace.total_ms = (time.monotonic() - t0) * 1000
+                self._persist_trace(trace, tid)
             return (
                 "I couldn't find any relevant content in the document "
                 "to answer your question. Make sure the document has been "
@@ -132,7 +147,9 @@ class RAGChatService:
             max_tokens=self._llm_config.max_tokens,
         )
 
+        t_llm = time.monotonic()
         response = await self._llm_provider.generate(request)
+        llm_ms = (time.monotonic() - t_llm) * 1000
 
         citations = [
             {
@@ -146,8 +163,26 @@ class RAGChatService:
             for c in chunks[: self._top_k]
         ]
 
+        if trace is not None:
+            trace.chunks_retrieved = len(chunks)
+            trace.chunks_cited = len(citations)
+            trace.llm_ms = llm_ms
+            trace.total_ms = (time.monotonic() - t0) * 1000
+            trace.cache_hit = bool(getattr(self, "_last_cache_hit", False))
+            self._persist_trace(trace, tid)
+
         logger.info("[%s] RAG answer: %d chunks, %d tokens", tid, len(chunks), len(response.text))
         return response.text, citations
+
+    @staticmethod
+    def _persist_trace(trace: Any, tid: str) -> None:
+        """Persist a RequestTrace fire-and-forget (failures logged, never raised)."""
+        try:
+            from src.ai_core.tracing.store import TraceStore
+
+            asyncio.get_event_loop().create_task(TraceStore.record(trace))
+        except Exception:
+            logger.exception("Failed to persist request trace")
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -159,6 +194,7 @@ class RAGChatService:
         Falls back to uncached embedding when Redis is unavailable.
         Cache key uses SHA-256 to avoid Python's per-process salted hash().
         """
+        self._last_cache_hit = False
         # Only cache for Ollama embedding provider
         if self._embedding_provider.provider_name != "ollama":
             return await self._embedding_provider.embed(text)
@@ -173,6 +209,7 @@ class RAGChatService:
                 parsed = json.loads(cached)
                 if isinstance(parsed, list) and all(isinstance(v, float) for v in parsed):
                     logger.debug("[%s] Embedding cache HIT key=%s", trace_id, cache_key[:16])
+                    self._last_cache_hit = True
                     return parsed
                 logger.debug("[%s] Embedding cache miss (invalid format) key=%s", trace_id, cache_key[:16])
         except Exception:
