@@ -42,7 +42,7 @@ dev = [
     "aiosqlite>=0.20,<1",
     "pytest-cov>=4.1,<6",
     "ruff>=0.2,<1",
-    "black>=24.1,<25",
+    "black>=24.1,<27",
     "mypy>=1.8,<2",
 ]
 ai = [
