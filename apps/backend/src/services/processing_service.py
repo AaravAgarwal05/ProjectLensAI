@@ -23,6 +23,7 @@ import os
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -446,17 +447,30 @@ class ProcessingService:
                 from src.ai_core.vector_store.providers.chroma_store import (
                     ChromaVectorStore,
                 )
+                from src.ai_core.vector_store.providers.pgvector_store import (
+                    PgVectorStore,
+                )
 
                 store_factory = VectorStoreFactory()
                 store_factory.registry.register("chroma", ChromaVectorStore)
+                store_factory.registry.register("pgvector", PgVectorStore)
 
                 from src.config.settings import get_settings
 
                 _s = get_settings()
+                store_provider = _s.VECTOR_STORE_PROVIDER
+                dims = embed_result.embeddings[0].dimensions if embed_result.embeddings else 384
+                if store_provider == "pgvector":
+                    extra: dict[str, Any] = {
+                        "dsn": _s.DATABASE_URL.replace("+asyncpg", ""),
+                        "dimensions": dims,
+                    }
+                else:
+                    extra = {"host": _s.CHROMA_HOST, "port": _s.CHROMA_PORT}
                 config = VectorStoreConfiguration(
-                    store="chroma",
+                    store=store_provider,
                     collection_name=f"report_{report_id}",
-                    extra={"host": _s.CHROMA_HOST, "port": _s.CHROMA_PORT},
+                    extra=extra,
                 )
                 engine = IndexingEngine(factory=store_factory, config=config)
                 index_result = await engine.index(embed_result.embeddings)

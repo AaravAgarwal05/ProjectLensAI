@@ -96,6 +96,24 @@ class TestChromaVectorStore:
         result = await store.delete_by_version("version_test", "v1")
         assert result.successful is True
 
+    async def test_query(self, store, sample_docs):
+        await store.create_collection("query_test", dimensions=4)
+        await store.insert("query_test", sample_docs)
+        # c1's exact vector — should rank first
+        hits = await store.query("query_test", [0.1, 0.2, 0.3, 0.4], top_k=2)
+        assert len(hits) == 2
+        assert hits[0].chunk_id == "c1"
+        assert hits[0].score > hits[1].score
+        assert hits[0].score > 0
+
+    async def test_fetch_all(self, store, sample_docs):
+        await store.create_collection("fetch_test", dimensions=4)
+        await store.insert("fetch_test", sample_docs)
+        hits = await store.fetch_all("fetch_test")
+        assert len(hits) == 2
+        assert {h.chunk_id for h in hits} == {"c1", "c2"}
+        assert all(h.score == 0.0 for h in hits)
+
     async def test_configure(self):
         s = ChromaVectorStore(path="/tmp/test_chroma")
         s.configure({"path": "/tmp/test_chroma_2"})

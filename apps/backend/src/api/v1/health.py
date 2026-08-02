@@ -40,22 +40,24 @@ async def _check_database() -> dict[str, Any]:
         return {"status": "error", "latency_ms": 0}
 
 
-async def _check_chromadb() -> dict[str, Any]:
-    """Check ChromaDB connectivity via heartbeat."""
+async def _check_vector_store() -> dict[str, Any]:
+    """Check vector-store connectivity via health_check."""
     try:
-        import chromadb
+        from src.ai_core.vector_store.factory import build_vector_store
 
         settings = get_settings()
-        host = settings.CHROMA_HOST or "localhost"
-        port = settings.CHROMA_PORT or 8000
-        client = chromadb.HttpClient(host, port)
+        store = build_vector_store(settings)
         start = time.monotonic()
-        client.heartbeat()
+        ok = await store.health_check()
         latency_ms = int((time.monotonic() - start) * 1000)
-        return {"status": "ok", "latency_ms": latency_ms}
+        return {
+            "status": "ok" if ok else "error",
+            "latency_ms": latency_ms,
+            "provider": store.store_name,
+        }
     except Exception as exc:
-        logger.warning("ChromaDB health check failed: %s", exc)
-        return {"status": "error", "latency_ms": 0}
+        logger.warning("Vector store health check failed: %s", exc)
+        return {"status": "error", "latency_ms": 0, "provider": ""}
 
 
 async def _check_ollama() -> dict[str, Any]:
@@ -84,7 +86,7 @@ async def _check_redis() -> dict[str, Any]:
 async def health_check() -> dict[str, Any]:
     """Return comprehensive service health information.
 
-    Checks database, ChromaDB, Ollama, and Redis connectivity,
+    Checks database, vector store, Ollama, and Redis connectivity,
     then aggregates the results into an overall status.
 
     Responses:
@@ -93,13 +95,13 @@ async def health_check() -> dict[str, Any]:
     settings = get_settings()
 
     db_result = await _check_database()
-    chroma_result = await _check_chromadb()
+    vector_result = await _check_vector_store()
     ollama_result = await _check_ollama()
     redis_result = await _check_redis()
 
     checks = {
         "database": db_result,
-        "chromadb": chroma_result,
+        "vector_store": vector_result,
         "ollama": ollama_result,
         "redis": redis_result,
     }

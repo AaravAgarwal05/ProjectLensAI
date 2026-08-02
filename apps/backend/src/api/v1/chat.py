@@ -38,26 +38,17 @@ router = APIRouter()
 
 # Singleton RAG service instance — lazy-init so it doesn't block import time.
 _rag_service: RAGChatService | None = None
-_chroma_client: Any | None = None
+_vector_store: Any | None = None
 
 
-def _get_chroma_client(request: Request | None = None) -> Any:
-    """Get the shared ChromaDB client, preferring app.state singleton."""
-    # Prefer the startup-initialized singleton
-    if request is not None:
-        client = getattr(request.app.state, "chroma_client", None)
-        if client is not None:
-            return client
+def _get_vector_store() -> Any:
+    """Get the shared vector store (provider from VECTOR_STORE_PROVIDER)."""
+    global _vector_store  # noqa: PLW0603
+    if _vector_store is None:
+        from src.ai_core.vector_store.factory import build_vector_store
 
-    global _chroma_client  # noqa: PLW0603
-    if _chroma_client is None:
-        import chromadb
-
-        from src.config.settings import get_settings
-
-        s = get_settings()
-        _chroma_client = chromadb.HttpClient(host=s.CHROMA_HOST, port=s.CHROMA_PORT)
-    return _chroma_client
+        _vector_store = build_vector_store()
+    return _vector_store
 
 
 def _get_rag_service() -> RAGChatService:
@@ -123,20 +114,15 @@ def _build_orchestrator(
 def _build_retrieve_chunks() -> (
     callable[[str, list[str], int, Any], Awaitable[list[ContextChunk]]] | None
 ):
-    """Build an async callable that embeds a query and retrieves ContextChunks from ChromaDB.
+    """Build an async callable that embeds a query and retrieves ContextChunks from the vector store.
 
     Applies cross-encoder reranking and MMR diversity post-processing
     when the required models are available.
 
-    Returns ``None`` if ChromaDB is not available.
+    Returns ``None`` if the vector store is not available.
     """
     try:
-        from src.config.settings import get_settings
-
-        _s = get_settings()
-        chroma_host = _s.CHROMA_HOST
-        chroma_port = _s.CHROMA_PORT
-        chroma_client = _get_chroma_client()
+        store = _get_vector_store()
 
         # Lazy-init rerankers at module scope so they're reused across calls
         _cross_encoder: Any = None
@@ -175,7 +161,7 @@ def _build_retrieve_chunks() -> (
             from src.ai_core.retrieval.models import RetrievedChunk, SearchQuery
             from src.services.rag_chat_service import RAGChatService
             _t_embed = time.monotonic()
-            rag = RAGChatService(chroma_host=chroma_host, chroma_port=chroma_port, top_k=top_k)
+            rag = RAGChatService(top_k=top_k)
             query_vec = await rag._embed_with_cache(query)  # noqa: SLF001
             embed_ms = (time.monotonic() - _t_embed) * 1000
             if trace is not None:
@@ -186,34 +172,21 @@ def _build_retrieve_chunks() -> (
             all_chunks: list[ContextChunk] = []
             for rid in report_ids:
                 try:
-                    collection = chroma_client.get_collection(name=f"report_{rid}")
+                    hits = await store.query(f"report_{rid}", query_vec, top_k)
                 except Exception:
-                    logger.info("No ChromaDB collection for report %s, skipping", rid)
+                    logger.info("No vector store collection for report %s, skipping", rid)
                     continue
 
-                results = collection.query(
-                    query_embeddings=[query_vec],
-                    n_results=top_k,
-                    include=["metadatas", "distances", "documents"],
-                )
-
-                ids = results.get("ids", [[]])[0]
-                distances = results.get("distances", [[]])[0]
-                documents = results.get("documents", [[]])[0]
-                metadatas = results.get("metadatas", [[]])[0]
-
-                for i in range(len(ids)):
-                    score = 1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0
-                    meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+                for hit in hits:
                     all_chunks.append(
                         ContextChunk(
-                            chunk_id=ids[i],
-                            content=documents[i] if documents and i < len(documents) else "",
-                            score=score,
+                            chunk_id=hit.chunk_id,
+                            content=hit.content,
+                            score=hit.score,
                             source_id=rid,
-                            source_title=meta.get("title", "") or "",
-                            page_number=meta.get("page_number"),
-                            section_name=meta.get("section_name", "") or "",
+                            source_title=hit.metadata.get("title", "") or "",
+                            page_number=hit.metadata.get("page_number"),
+                            section_name=hit.metadata.get("section_name", "") or "",
                         )
                     )
             query_ms = (time.monotonic() - _t_query) * 1000
@@ -225,14 +198,13 @@ def _build_retrieve_chunks() -> (
             bm25_total_added = 0
             for rid in report_ids:
                 try:
-                    bm25_col = chroma_client.get_collection(name=f"report_{rid}")
+                    all_hits = await store.fetch_all(f"report_{rid}")
                 except Exception:
                     continue
                 try:
-                    all_data = bm25_col.get()
-                    bm25_ids: list[str] = all_data.get("ids", [])
-                    bm25_docs: list[str] = all_data.get("documents", [])
-                    bm25_metas: list[dict] = all_data.get("metadatas", [])
+                    bm25_ids = [h.chunk_id for h in all_hits]
+                    bm25_docs = [h.content for h in all_hits]
+                    bm25_metas = [h.metadata for h in all_hits]
                     if not bm25_ids:
                         continue
                     bm25 = _BM25Okapi()

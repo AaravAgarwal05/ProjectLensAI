@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.ai_core.llm.models import LLMResponse
+from src.ai_core.vector_store.models import VectorHit
 from src.services.rag_chat_service import RAGChatService
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -32,6 +33,25 @@ def _make_chroma_collection_mock(query_result: dict | None = None):
     return col
 
 
+def _result_to_hits(result: dict) -> list[VectorHit]:
+    """Convert a chroma-style query result dict to VectorHits (as the real stores do)."""
+    ids = result.get("ids", [[]])[0]
+    distances = result.get("distances", [[]])[0]
+    documents = result.get("documents", [[]])[0]
+    metadatas = result.get("metadatas", [[]])[0]
+    hits = []
+    for i in range(len(ids)):
+        hits.append(
+            VectorHit(
+                chunk_id=ids[i],
+                content=documents[i] if documents and i < len(documents) else "",
+                metadata=metadatas[i] if metadatas and i < len(metadatas) else {},
+                score=1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0,
+            )
+        )
+    return hits
+
+
 def _patched_service(embedder=None, llm=None, collections=None):
     """Context manager: yields a RAGChatService with patched deps.
 
@@ -48,19 +68,24 @@ def _patched_service(embedder=None, llm=None, collections=None):
         llm = AsyncMock()
         llm.generate.return_value = LLMResponse(text="Answer.")
 
-    chroma_client = MagicMock()
-    chroma_client.get_collection.side_effect = (
-        lambda name, cols=collections or {}: cols.get(name)
-    )
+    def _fake_query(collection, embedding, top_k=10):
+        col = (collections or {}).get(collection)
+        if col is None:
+            raise ValueError(f"no collection {collection}")
+        return _result_to_hits(
+            col.query(query_embeddings=[embedding], n_results=top_k, include=[])
+        )
+
+    store = MagicMock()
+    store.query = AsyncMock(side_effect=_fake_query)
 
     class _Ctx:
         async def __aenter__(self):
             self._p1 = patch("src.services.rag_chat_service.build_embedding_provider", return_value=embedder)
             self._p2 = patch("src.services.rag_chat_service.build_llm_provider", return_value=llm)
-            self._p4 = patch.object(
-                RAGChatService,
-                "_get_chroma_client",
-                new=AsyncMock(return_value=chroma_client),
+            self._p4 = patch(
+                "src.ai_core.vector_store.factory.build_vector_store",
+                return_value=store,
             )
             self._p1.start()
             self._p2.start()

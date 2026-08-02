@@ -20,7 +20,7 @@ How the system is deployed, both environments, and the two compose files.
 | File | For | Includes |
 |------|-----|----------|
 | `docker-compose.yml` | Local dev (or "everything in Docker") | postgres, chroma, redis, backend, frontend |
-| `docker-compose.prod.yml` | Production | postgres, chroma, redis, backend, frontend, nginx |
+| `docker-compose.prod.yml` | Production | postgres (app + pgvector), redis, backend, frontend, nginx |
 
 ### Dev compose (`docker-compose.yml`)
 
@@ -40,7 +40,9 @@ Differences from dev:
 - **Secrets required** — `POSTGRES_USER`, `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `SECRET_KEY` have
   **no defaults** (`${VAR:?...}`), read from `.env.production` (also loaded via `env_file`)
 - **Redis** runs with a requirepass and a `512mb` maxmemory LRU policy
-- **Resource limits** on postgres (1G/1CPU), chroma (1G/0.5CPU), redis (512M/0.5CPU), backend (1G/1CPU)
+- **Resource limits** on postgres (1G/1CPU), redis (512M/0.5CPU), backend (1G/1CPU)
+- **No Chroma** — production is a single-DB stack: the `pgvector/pgvector:pg16` postgres holds app
+  data *and* embeddings (`VECTOR_STORE_PROVIDER=pgvector`, tables in the `vector_store` schema)
 - **nginx** `nginx:1.31.3-alpine` on port `80`, config from `docker/nginx/default.conf` —
   reverse-proxies `/api/` → backend, everything else → frontend; adds hardening headers
 - Frontend `NEXT_PUBLIC_API_URL=/api/v1` (same-origin via nginx)
@@ -52,7 +54,7 @@ Differences from dev:
 ### 1. Single-server Docker Compose (this repo's default)
 
 ```
-Internet ── :80 ──▶ nginx ──┬─▶ /api/* ──▶ backend:8000 ──▶ postgres / redis / chroma
+Internet ── :80 ──▶ nginx ──┬─▶ /api/* ──▶ backend:8000 ──▶ postgres (app + pgvector) / redis
                             └─▶ *      ──▶ frontend:3000
 ```
 `scripts/deploy.sh` builds, starts, and health-checks this stack. See
@@ -64,8 +66,7 @@ The app is cloud-native; components can be hosted by managed services:
 
 | Component | This repo (self-hosted) | Managed alternative |
 |-----------|------------------------|---------------------|
-| PostgreSQL | `pgvector/pgvector:pg16` | Neon / Supabase / Railway Postgres (pgvector supported) |
-| ChromaDB | `chromadb/chroma` | Managed vector DB (or keep self-hosted Chroma) |
+| PostgreSQL (app + embeddings) | `pgvector/pgvector:pg16` | Neon / Supabase / Railway Postgres (pgvector supported) — set `VECTOR_STORE_PROVIDER=pgvector` |
 | Redis | `redis:7-alpine` | Upstash Redis |
 | Backend | FastAPI Docker image | Railway / Render (build from `apps/backend/Dockerfile`) |
 | Frontend | Next.js Docker image | Vercel (`apps/frontend`) |

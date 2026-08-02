@@ -56,6 +56,26 @@ class VectorDocument(BaseModel):
     metadata: VectorMetadata = Field(default_factory=VectorMetadata)
 
 
+class VectorHit(BaseModel):
+    """A retrieval result returned by ``VectorStore.query`` / ``fetch_all``.
+
+    ``metadata`` is a **flat** dict (mirrors Chroma's metadata shape) so callers
+    can read ``title`` / ``page_number`` / ``section_name`` regardless of whether
+    the backing store is Chroma or pgvector.
+
+    Attributes:
+        chunk_id: Link back to the source ``Chunk``.
+        content: The chunk text (empty for ``fetch_all`` when not stored).
+        metadata: Flat provider metadata dict.
+        score: Similarity score (higher is better); 0 for ``fetch_all``.
+    """
+
+    chunk_id: str = ""
+    content: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    score: float = 0.0
+
+
 class IndexingStatistics(BaseModel):
     """Aggregate statistics for an indexing operation.
 

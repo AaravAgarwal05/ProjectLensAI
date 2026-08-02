@@ -190,10 +190,20 @@ Docker. **Remaining schema note:** `ai_core/chat/database.py::create_tables()` s
 
 ---
 
-## Vector store — not in Postgres
+## Vector store — Chroma in dev, pgvector in prod
 
-Embeddings live in **ChromaDB** (separate service, port `8001`), not pgvector. Chroma collections
-are per report (`report_{id}`); metadata carries `chunk_id`, `report_id`, `version_id`,
-`embedding_model`, `provider`. A pgvector store (`src/ai_core/vector_store/pgvector_store.py`)
-exists but is **not wired up** — the store registry defaults to Chroma. See
-[AI Pipeline](../architecture/ai-pipeline.md).
+Embeddings are stored per report (`report_{id}` collections / tables) with metadata carrying
+`chunk_id`, `report_id`, `version_id`, `embedding_model`, `embedding_provider`, plus chunk
+metadata (`title`, `page_number`, `section_name`, …). The backing store is chosen by
+`VECTOR_STORE_PROVIDER`:
+
+- **`chroma`** (dev default) — separate Chroma service (port `8001`); zero-setup, in-memory/durable via the compose volume.
+- **`pgvector`** (prod) — tables in the `vector_store` schema of the **same PostgreSQL** used for
+  app data, so production is a single-DB stack (no Chroma container). `pgvector_store.py`
+  persists chunk `content` + a JSONB `metadata` column alongside the `vector(dims)` column;
+  retrieval runs `ORDER BY vector <=> $1 LIMIT k`.
+
+All retrieval paths (chat RAG, per-report search) go through the same
+`VectorStore.query` / `fetch_all` abstraction — providers are interchangeable. There is **no
+embedding migration** between the two: switching `VECTOR_STORE_PROVIDER` starts a fresh index
+(reprocess reports to re-embed). See [AI Pipeline](../architecture/ai-pipeline.md).

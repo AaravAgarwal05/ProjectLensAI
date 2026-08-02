@@ -377,10 +377,14 @@ class SearchResponse(BaseModel):
     total: int = 0
 
 
-def _get_chroma_client(request: Request) -> Any | None:
-    """Get the shared ChromaDB client from app state."""
-    client = getattr(request.app.state, "chroma_client", None)
-    return client
+def _get_vector_store(request: Request) -> Any | None:
+    """Get the shared vector store from app state (fall back to a fresh build)."""
+    store = getattr(request.app.state, "vector_store", None)
+    if store is not None:
+        return store
+    from src.ai_core.vector_store.factory import build_vector_store
+
+    return build_vector_store()
 
 
 @router.post("/{report_id}/search", response_model=SearchResponse)
@@ -395,7 +399,7 @@ async def search_report_chunks(
     """Search a report's indexed chunks by embedding similarity.
 
     Only the report's owner may search its chunks — the report row is
-    checked for ownership before ChromaDB is touched.
+    checked for ownership before the vector store is touched.
     """
     from src.services import ReportService
 
@@ -407,46 +411,32 @@ async def search_report_chunks(
     # 404 (not 403) if the report doesn't exist or isn't the caller's.
     await service.get_report(UUID(report_id), owner_id=str(user.id))
 
-    client = _get_chroma_client(request)
-    if client is None:
-        raise HTTPException(status_code=503, detail="ChromaDB not available")
-
-    try:
-        collection = client.get_collection(name=f"report_{report_id}")
-    except Exception:
-        raise HTTPException(
-            status_code=404,
-            detail=f"ChromaDB collection for report {report_id} not found",
-        ) from None
+    store = _get_vector_store(request)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Vector store not available")
 
     from src.ai_core.embedding.factory import build_embedding_provider
 
     embedder = build_embedding_provider()
     query_vec = await embedder.embed(body.query)
 
-    results = collection.query(
-        query_embeddings=[query_vec],
-        n_results=body.top_k,
-        include=["metadatas", "distances", "documents"],
-    )
+    try:
+        hits = await store.query(f"report_{report_id}", query_vec, body.top_k)
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Vector store collection for report {report_id} not found",
+        ) from None
 
-    ids = results.get("ids", [[]])[0]
-    distances = results.get("distances", [[]])[0]
-    documents = results.get("documents", [[]])[0]
-    metadatas = results.get("metadatas", [[]])[0]
-
-    chunks: list[SearchResultChunk] = []
-    for i in range(len(ids)):
-        score = 1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0
-        meta = metadatas[i] if metadatas and i < len(metadatas) else {}
-        chunks.append(
-            SearchResultChunk(
-                chunk_id=ids[i],
-                content=documents[i] if documents and i < len(documents) else "",
-                score=score,
-                section_name=meta.get("section_name", "") or "",
-                page_number=meta.get("page_number"),
-            )
+    chunks: list[SearchResultChunk] = [
+        SearchResultChunk(
+            chunk_id=hit.chunk_id,
+            content=hit.content,
+            score=hit.score,
+            section_name=hit.metadata.get("section_name", "") or "",
+            page_number=hit.metadata.get("page_number"),
         )
+        for hit in hits
+    ]
 
     return SearchResponse(chunks=chunks, total=len(chunks))

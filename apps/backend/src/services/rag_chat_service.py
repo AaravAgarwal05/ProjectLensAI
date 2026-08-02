@@ -17,7 +17,6 @@ from src.ai_core.embedding.factory import build_embedding_provider
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.models import LLMRequest
 from src.ai_core.llm.registry import build_llm_provider
-from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -42,21 +41,15 @@ class RAGChatService:
         query -> embed -> ChromaDB similarity search -> prompt -> Ollama LLM -> response
     """
 
-    def __init__(
-        self,
-        chroma_host: str | None = None,
-        chroma_port: int | None = None,
-        top_k: int = 5,
-    ) -> None:
-        _settings = get_settings()
-        self._chroma_host = chroma_host or _settings.CHROMA_HOST
-        self._chroma_port = chroma_port or _settings.CHROMA_PORT
+    def __init__(self, top_k: int = 5) -> None:
+        from src.ai_core.vector_store.factory import build_vector_store
+
         self._top_k = top_k
         # Providers are resolved from configuration — never constructed here.
         self._embedding_provider = build_embedding_provider()
         self._llm_config = LLMConfiguration()
         self._llm_provider = build_llm_provider(self._llm_config)
-        self._chroma_client: Any | None = None
+        self._store = build_vector_store()
 
     # ------------------------------------------------------------------
     # Request tracing
@@ -223,38 +216,26 @@ class RAGChatService:
         report_ids: list[str],
         trace_id: str = "",
     ) -> list[dict[str, Any]]:
-        """Retrieve relevant chunks from ChromaDB for each report."""
+        """Retrieve relevant chunks from the vector store for each report."""
         all_chunks: list[dict[str, Any]] = []
 
         # Embed once, reuse across all report collections
         query_vec = await self._embed_with_cache(message, trace_id=trace_id)
 
         for rid in report_ids:
-            collection = await self._get_collection(rid)
-            if collection is None:
-                logger.info("[%s] No ChromaDB collection for report %s, skipping", trace_id, rid)
+            try:
+                hits = await self._store.query(f"report_{rid}", query_vec, self._top_k)
+            except Exception:
+                logger.info("[%s] No vector store collection for report %s, skipping", trace_id, rid)
                 continue
 
-            # Run synchronous ChromaDB query in thread pool to avoid blocking event loop
-            results = await asyncio.to_thread(
-                collection.query,
-                query_embeddings=[query_vec],
-                n_results=self._top_k,
-                include=["metadatas", "distances", "documents"],
-            )
-
-            ids = results.get("ids", [[]])[0]
-            distances = results.get("distances", [[]])[0]
-            documents = results.get("documents", [[]])[0]
-            metadatas = results.get("metadatas", [[]])[0]
-
-            for i in range(len(ids)):
+            for hit in hits:
                 all_chunks.append(
                     {
-                        "chunk_id": ids[i],
-                        "content": documents[i] if documents and i < len(documents) else "",
-                        "score": 1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0,
-                        "metadata": metadatas[i] if metadatas and i < len(metadatas) else {},
+                        "chunk_id": hit.chunk_id,
+                        "content": hit.content,
+                        "score": hit.score,
+                        "metadata": hit.metadata,
                         "report_id": rid,
                     }
                 )
@@ -269,31 +250,3 @@ class RAGChatService:
         for i, c in enumerate(chunks[: self._top_k]):
             parts.append(f"[{i + 1}] (relevance: {c['score']:.2f})\n{c['content']}")
         return "\n\n---\n\n".join(parts)
-
-    async def _get_collection(self, report_id: str) -> Any | None:
-        """Get the ChromaDB collection for *report_id*, or None."""
-        client = await self._get_chroma_client()
-        try:
-            return await asyncio.to_thread(client.get_collection, name=f"report_{report_id}")
-        except ValueError as exc:
-            err = str(exc).lower()
-            if "does not exist" in err or "not found" in err:
-                logger.debug("Collection report_%s does not exist yet", report_id)
-            else:
-                logger.warning("ChromaDB error getting report_%s: %s", report_id, exc)
-            return None
-        except Exception as exc:
-            logger.error("Unexpected ChromaDB error for report_%s: %s", report_id, exc)
-            return None
-
-    async def _get_chroma_client(self) -> Any:
-        """Lazy-init a ChromaDB HTTP client (runs sync init in thread pool)."""
-        if self._chroma_client is None:
-            import chromadb
-
-            self._chroma_client = await asyncio.to_thread(
-                chromadb.HttpClient,
-                host=self._chroma_host,
-                port=self._chroma_port,
-            )
-        return self._chroma_client

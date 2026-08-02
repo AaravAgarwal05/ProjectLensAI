@@ -91,12 +91,13 @@ Templates:
 |----------|---------|-------------|
 | `CORS_ORIGINS` | `["http://localhost:3000"]` | JSON list of allowed browser origins. Prod: your frontend domain(s), e.g. `["https://app.yourdomain.com"]` |
 
-## Vector store (ChromaDB)
+## Vector store
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CHROMA_HOST` | `localhost` | ChromaDB host. Docker infra: `chroma`. Native dev: `localhost` |
-| `CHROMA_PORT` | `8000` | ChromaDB port. Note Docker maps `8001:8000`, so native dev uses `8001` |
+| `VECTOR_STORE_PROVIDER` | `chroma` | Backing vector store: `chroma` (dev) or `pgvector` (prod, same Postgres — no separate service). DSN for pgvector derives from `DATABASE_URL` |
+| `CHROMA_HOST` | `localhost` | ChromaDB host (dev only). Docker infra: `chroma`. Native dev: `localhost` |
+| `CHROMA_PORT` | `8000` | ChromaDB port (dev only). Note Docker maps `8001:8000`, so native dev uses `8001` |
 
 ## LLM providers
 

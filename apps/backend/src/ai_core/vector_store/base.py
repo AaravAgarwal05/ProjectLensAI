@@ -8,14 +8,15 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from src.ai_core.vector_store.models import DeleteResult, VectorDocument
+from src.ai_core.vector_store.models import DeleteResult, VectorDocument, VectorHit
 
 
 class VectorStore(ABC):
     """Interface for vector database operations.
 
-    Stores, updates, and deletes ``VectorDocument`` objects.
-    Knows nothing about retrieval, search, or ranking.
+    Stores, updates, deletes, and retrieves ``VectorDocument`` objects.
+    Retrieval methods (``query`` / ``fetch_all``) return raw hits — ranking
+    and reranking happen one layer up.
     """
 
     @property
@@ -106,6 +107,31 @@ class VectorStore(ABC):
     @abstractmethod
     async def delete_by_version(self, collection: str, version_id: str) -> DeleteResult:
         """Delete all documents for a given version_id."""
+
+    # ------------------------------------------------------------------
+    # Retrieval
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    async def query(
+        self,
+        collection: str,
+        embedding: list[float],
+        top_k: int = 10,
+    ) -> list[VectorHit]:
+        """Return the *top_k* nearest vectors to *embedding* in *collection*.
+
+        Hits are ordered most-similar first; ``VectorHit.score`` is a similarity
+        score (higher is better). Raises a store error if the collection does
+        not exist.
+        """
+
+    @abstractmethod
+    async def fetch_all(self, collection: str) -> list[VectorHit]:
+        """Return every vector in *collection* (used by keyword/BM25 legs).
+
+        ``VectorHit.score`` is 0 for all hits.
+        """
 
     # ------------------------------------------------------------------
     # Configuration

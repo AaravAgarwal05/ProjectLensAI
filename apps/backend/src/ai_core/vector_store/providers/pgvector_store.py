@@ -5,11 +5,12 @@ Uses PostgreSQL with the pgvector extension.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 from src.ai_core.vector_store.base import VectorStore
-from src.ai_core.vector_store.models import DeleteResult, VectorDocument
+from src.ai_core.vector_store.models import DeleteResult, VectorDocument, VectorHit
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class PgVectorStore(VectorStore):
         dsn: PostgreSQL connection string.
         schema: Database schema name (default ``"vector_store"``).
         pool_size: Connection pool size (default 5).
+        dimensions: Embedding vector dimensions (default 384).
     """
 
     def __init__(
@@ -28,10 +30,12 @@ class PgVectorStore(VectorStore):
         dsn: str | None = None,
         schema: str = "vector_store",
         pool_size: int = 5,
+        dimensions: int = 384,
     ) -> None:
         self._dsn = dsn
         self._schema = schema
         self._pool_size = pool_size
+        self._dimensions = dimensions
         self._pool: Any = None
 
     @property
@@ -67,13 +71,14 @@ class PgVectorStore(VectorStore):
         if await self.collection_exists(name):
             return False
         pool = await self._get_pool()
-        dims = kwargs.get("dimensions", 384)
+        dims = kwargs.get("dimensions", self._dimensions)
         async with pool.acquire() as conn:
             await conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self._schema}.{name} (
                     id SERIAL PRIMARY KEY,
                     chunk_id TEXT UNIQUE NOT NULL,
                     vector vector({dims}),
+                    content TEXT DEFAULT '',
                     report_id TEXT DEFAULT '',
                     version_id TEXT DEFAULT '',
                     embedding_model TEXT DEFAULT '',
@@ -127,17 +132,19 @@ class PgVectorStore(VectorStore):
                     await conn.execute(
                         f"""
                         INSERT INTO {self._schema}.{collection}
-                            (chunk_id, vector, report_id, version_id,
-                             embedding_model, embedding_provider)
-                        VALUES ($1, $2::vector, $3, $4, $5, $6)
+                            (chunk_id, vector, content, report_id, version_id,
+                             embedding_model, embedding_provider, metadata)
+                        VALUES ($1, $2::vector, $3, $4, $5, $6, $7, $8::jsonb)
                         ON CONFLICT (chunk_id) DO NOTHING
                         """,
                         doc.chunk_id,
                         doc.vector,
+                        doc.text,
                         doc.metadata.report_id,
                         doc.metadata.version_id,
                         doc.metadata.embedding_model,
                         doc.metadata.embedding_provider,
+                        json.dumps(doc.metadata.extra, default=str),
                     )
                     count += 1
                 except Exception as exc:
@@ -154,17 +161,21 @@ class PgVectorStore(VectorStore):
                         f"""
                         UPDATE {self._schema}.{collection}
                         SET vector = $1::vector,
-                            report_id = $2,
-                            version_id = $3,
-                            embedding_model = $4,
-                            embedding_provider = $5
-                        WHERE chunk_id = $6
+                            content = $2,
+                            report_id = $3,
+                            version_id = $4,
+                            embedding_model = $5,
+                            embedding_provider = $6,
+                            metadata = $7::jsonb
+                        WHERE chunk_id = $8
                         """,
                         doc.vector,
+                        doc.text,
                         doc.metadata.report_id,
                         doc.metadata.version_id,
                         doc.metadata.embedding_model,
                         doc.metadata.embedding_provider,
+                        json.dumps(doc.metadata.extra, default=str),
                         doc.chunk_id,
                     )
                     count += 1
@@ -205,6 +216,57 @@ class PgVectorStore(VectorStore):
         async with pool.acquire() as conn:
             row = await conn.fetchval(f"SELECT COUNT(*) FROM {self._schema}.{collection}")
             return row or 0
+
+    async def query(
+        self,
+        collection: str,
+        embedding: list[float],
+        top_k: int = 10,
+    ) -> list[VectorHit]:
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"""
+                SELECT chunk_id, content, metadata, report_id, version_id,
+                       embedding_model, embedding_provider,
+                       1 / (1 + (vector <=> $1::vector)) AS score
+                FROM {self._schema}.{collection}
+                ORDER BY vector <=> $1::vector
+                LIMIT $2
+                """,
+                embedding,
+                top_k,
+            )
+        hits: list[VectorHit] = []
+        for row in rows:
+            meta = {"report_id": row["report_id"], "version_id": row["version_id"],
+                    "embedding_model": row["embedding_model"],
+                    "embedding_provider": row["embedding_provider"]}
+            meta.update(row["metadata"] or {})
+            hits.append(
+                VectorHit(
+                    chunk_id=row["chunk_id"],
+                    content=row["content"] or "",
+                    metadata=meta,
+                    score=float(row["score"]),
+                )
+            )
+        return hits
+
+    async def fetch_all(self, collection: str) -> list[VectorHit]:
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"SELECT chunk_id, content, metadata FROM {self._schema}.{collection}"
+            )
+        return [
+            VectorHit(
+                chunk_id=row["chunk_id"],
+                content=row["content"] or "",
+                metadata=row["metadata"] or {},
+            )
+            for row in rows
+        ]
 
     async def delete_by_report(self, collection: str, report_id: str) -> DeleteResult:
         try:
@@ -248,6 +310,8 @@ class PgVectorStore(VectorStore):
             self._schema = params["schema"]
         if "pool_size" in params:
             self._pool_size = params["pool_size"]
+        if "dimensions" in params:
+            self._dimensions = params["dimensions"]
 
 
 def _parse_count(result: str) -> int:

@@ -22,7 +22,7 @@ CollectionService
 database/ (SQLAlchemy)   ai_core/* (document_processing, chunking,
       │                  embedding, retrieval, context, llm, tracing)
       ▼
-PostgreSQL  ·  ChromaDB  ·  Redis
+PostgreSQL (app data + pgvector in prod)  ·  ChromaDB (dev only)  ·  Redis
 ```
 
 ---
@@ -57,8 +57,8 @@ slowapi limiter backed by Redis; keyed on remote address. Exempts `/health`.
 | Service | Dependencies | Responsibility |
 |---------|--------------|----------------|
 | **`ReportService`** | `session, storage, settings` | Report + version CRUD. `_ensure_owned` returns 404 on cross-owner access (never 403 — tenancy hides existence). `_validate_file` checks extension whitelist + size, `_compute_checksum` SHA-256, `_store_file` writes to storage as `reports/{file_id}/{file_id}{ext}` (never the client filename) |
-| **`ProcessingService`** | `pipeline, storage, db_factory` | Background document processing (`process_report`): load → status `processing` → download to tempfile → `pipeline.run()` → `_index_document` (chunk → embed → index into Chroma `report_{id}`) → status `ready`; on failure → `error` with message. Tempfile always cleaned. Runs chunking strategy from user prefs (default `heading_aware`), embedding provider (default `ollama`) |
-| **`RAGChatService`** | `chroma_host, chroma_port, top_k=5` | Non-streaming `answer(message, report_ids, trace)`: embed query once (Redis-cached, `embedding:{sha256}`, 1h TTL), query Chroma per report, assemble context, generate. Persists a `RequestTrace` fire-and-forget. Used as a fallback when the orchestrator path is unavailable |
+| **`ProcessingService`** | `pipeline, storage, db_factory` | Background document processing (`process_report`): load → status `processing` → download to tempfile → `pipeline.run()` → `_index_document` (chunk → embed → index into the vector store `report_{id}`) → status `ready`; on failure → `error` with message. Tempfile always cleaned. Runs chunking strategy from user prefs (default `heading_aware`), embedding provider (default `ollama`) |
+| **`RAGChatService`** | `top_k=5` | Non-streaming `answer(message, report_ids, trace)`: embed query once (Redis-cached, `embedding:{sha256}`, 1h TTL), query the vector store per report, assemble context, generate. Persists a `RequestTrace` fire-and-forget. Used as a fallback when the orchestrator path is unavailable |
 | **`CollectionService`** | `session` | Collection CRUD + add/remove report, `_ensure_owned` 404. |
 
 ---
@@ -119,9 +119,10 @@ Strategies **fixed** / **recursive** / **heading_aware** (registry + factory).
 
 ### `vector_store/`
 `IndexingEngine` (index / delete / delete_by_report / delete_by_version / reindex, batched, 3
-retries). `ChromaVectorStore` (HTTP, default) or `PgVectorStore` (asyncpg, `vector_store`
-schema, one table per collection with a `vector(dims)` column — **not wired up**).
-`VectorStoreConfiguration` defaults to `chroma`.
+retries). `ChromaVectorStore` (HTTP) or `PgVectorStore` (asyncpg, `vector_store` schema, one
+table per collection with `vector(dims)` + `content` + `metadata` JSONB columns). `query` /
+`fetch_all` on the `VectorStore` ABC are used by **all** retrieval paths; the provider is chosen
+by `VECTOR_STORE_PROVIDER` (`chroma` dev default, `pgvector` prod) via `build_vector_store()`.
 
 ### `retrieval/`
 `RetrievalPipeline` (retriever → reranker → validate). Retrievers: dense, `HybridRetriever`
@@ -198,7 +199,7 @@ Runs on app lifespan, after Sentry init (if `SENTRY_DSN`):
 2. `init_db(DATABASE_URL)` — async engine + session factory
 3. `get_redis()`
 4. register LLM providers (incl. `fallback`) → `app.state.llm_registry`
-5. `chromadb.HttpClient(host, port)` + heartbeat → `app.state.chroma_client` (`None` if down)
+5. `build_vector_store(settings)` + `health_check()` → `app.state.vector_store` (`None` if down)
 6. `build_embedding_provider()` + warmup embed → `app.state.embedding_provider`
 
 `shutdown_app()` closes Redis.

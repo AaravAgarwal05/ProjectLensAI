@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from src.ai_core.vector_store.base import VectorStore
-from src.ai_core.vector_store.models import DeleteResult, VectorDocument
+from src.ai_core.vector_store.models import DeleteResult, VectorDocument, VectorHit
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +147,50 @@ class ChromaVectorStore(VectorStore):
     async def count(self, collection: str) -> int:
         col = self._get_collection(collection)
         return col.count()  # type: ignore[no-any-return]
+
+    async def query(
+        self,
+        collection: str,
+        embedding: list[float],
+        top_k: int = 10,
+    ) -> list[VectorHit]:
+        col = self._get_collection(collection)
+        results = col.query(
+            query_embeddings=[embedding],
+            n_results=top_k,
+            include=["metadatas", "distances", "documents"],
+        )
+        ids = results.get("ids", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+        documents = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+
+        hits: list[VectorHit] = []
+        for i in range(len(ids)):
+            hits.append(
+                VectorHit(
+                    chunk_id=ids[i],
+                    content=documents[i] if documents and i < len(documents) else "",
+                    metadata=metadatas[i] if metadatas and i < len(metadatas) else {},
+                    score=1.0 / (1.0 + distances[i]) if distances and i < len(distances) else 0.0,
+                )
+            )
+        return hits
+
+    async def fetch_all(self, collection: str) -> list[VectorHit]:
+        col = self._get_collection(collection)
+        all_data = col.get()
+        ids: list[str] = all_data.get("ids", [])
+        documents: list[str] = all_data.get("documents", [])
+        metadatas: list[dict] = all_data.get("metadatas", [])
+        return [
+            VectorHit(
+                chunk_id=chunk_id,
+                content=documents[i] if i < len(documents) else "",
+                metadata=metadatas[i] if i < len(metadatas) else {},
+            )
+            for i, chunk_id in enumerate(ids)
+        ]
 
     async def delete_by_report(self, collection: str, report_id: str) -> DeleteResult:
         try:

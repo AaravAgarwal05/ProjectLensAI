@@ -12,7 +12,7 @@ Triggered by `POST /reports` and `POST /reports/{id}/versions` → `ProcessingSe
 runs in the background (the API returns `201` immediately).
 
 ```
-file → parse → clean → metadata → chunk → embed → index (Chroma)
+file → parse → clean → metadata → chunk → embed → index (vector store)
  │       │        │          │        │       │        │
  │       parsers  cleaners  Metadata  Chunking Embedding VectorStore
  │       PDF/DOCX            Extractor Pipeline Pipeline IndexingEngine
@@ -31,7 +31,7 @@ file → parse → clean → metadata → chunk → embed → index (Chroma)
 | Metadata | `document_processing/metadata.py` | title from filename, language heuristic, word/char counts |
 | Chunk | `ai_core/chunking/` | strategy from user prefs — **default `heading_aware`**; also `fixed` / `recursive`. Config: size 1000, overlap 200, min 100 |
 | Embed | `ai_core/embedding/` | provider from `build_embedding_provider()` — **default gemini** (`text-embedding-004`, 768-dim, L2-normalized). Also ollama (`nomic-embed-text`), sentence_transformer (local) |
-| Index | `ai_core/vector_store/` | Chroma collection `report_{id}`; metadata carries `chunk_id`, `report_id`, `version_id`, `embedding_model`, `provider` |
+| Index | `ai_core/vector_store/` | vector-store collection/table `report_{id}` (Chroma in dev, pgvector in prod); metadata carries `chunk_id`, `report_id`, `version_id`, `embedding_model`, `provider` |
 
 **Failure path:** any stage error → report status `error` with a message; tempfile cleaned in a
 `finally`.
@@ -57,7 +57,7 @@ message + session report_ids
    ▼
 3. query rewrite ── when history ≥ 3 msgs (LLM)
    ▼
-4. retrieve ── embed query ──▶ Chroma query per report ──▶ rerank (MMR λ=0.4, top_k 25)
+4. retrieve ── embed query ──▶ vector-store query per report ──▶ rerank (MMR λ=0.4, top_k 25)
    │
    ▼
 5. context assembly ── TokenBudgetManager allocate + enforce
@@ -89,7 +89,7 @@ message + session report_ids
 
 When the orchestrator path is unavailable, `chat.py` falls back to
 `RAGChatService.answer()`: embed the query once (Redis-cached `embedding:{sha256}`, 1h TTL),
-query Chroma per report in a thread, assemble context, generate. It also persists a
+query the vector store per report, assemble context, generate. It also persists a
 `RequestTrace`.
 
 ---
@@ -116,7 +116,7 @@ and latency attributable to a `prompt_version` / model / retrieval config.
 | Chunking | `heading_aware` | `fixed`, `recursive` | user prefs → `build_chunker` |
 | Embedding (ingest) | `ollama` (per user prefs) | `gemini`, `sentence_transformer` | user prefs |
 | Embedding (chat) | `gemini` | `ollama`, `sentence_transformer` | `build_embedding_provider()` |
-| Vector store | Chroma | PgVector (not wired) | `VectorStoreConfiguration` |
+| Vector store | Chroma (dev) / PgVector (prod) | `VECTOR_STORE_PROVIDER` | `build_vector_store()` |
 | Retrieval | dense | hybrid (BM25), multi_query | `RetrieverConfiguration` |
 | Reranker | none (MMR in chat) | cross-encoder | `build_reranker` |
 | Context strategy | `single_document` | multi_document, comparison, summary | `ContextConfiguration` |

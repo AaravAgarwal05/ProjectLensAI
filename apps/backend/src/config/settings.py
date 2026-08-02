@@ -50,6 +50,9 @@ class AppSettings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # Vector store — "chroma" (dev default) or "pgvector" (prod)
+    VECTOR_STORE_PROVIDER: str = "chroma"
+
     # ChromaDB
     CHROMA_HOST: str = "localhost"
     CHROMA_PORT: int = 8000

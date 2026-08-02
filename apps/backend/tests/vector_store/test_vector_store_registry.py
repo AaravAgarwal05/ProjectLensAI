@@ -50,6 +50,12 @@ class _FakeStore(VectorStore):
     async def delete_by_version(self, collection: str, version_id: str) -> "DeleteResult":
         return DeleteResult(collection_name=collection, deleted_count=0)
 
+    async def query(self, collection: str, embedding: list, top_k: int = 10) -> list:
+        return []
+
+    async def fetch_all(self, collection: str) -> list:
+        return []
+
     def configure(self, params: dict) -> None:
         pass
 

@@ -1,6 +1,6 @@
 """Tests for the health-check endpoint.
 
-The health endpoint checks database, ChromaDB, Ollama, and Redis
+The health endpoint checks database, vector store, Ollama, and Redis
 connectivity. In the test environment none of those are running,
 so the endpoint returns ``down`` but still returns valid JSON.
 """
@@ -22,7 +22,7 @@ async def test_health_returns_valid_response(client: AsyncClient) -> None:
     assert "timestamp" in body
     assert "checks" in body
     checks = body["checks"]
-    for dep in ("database", "chromadb", "ollama", "redis"):
+    for dep in ("database", "vector_store", "ollama", "redis"):
         assert dep in checks
         assert "status" in checks[dep]
         assert "latency_ms" in checks[dep]

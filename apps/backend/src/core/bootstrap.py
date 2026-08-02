@@ -62,22 +62,24 @@ async def bootstrap_app(app: FastAPI) -> None:
     app.state.llm_registry = _registry
 
     # ------------------------------------------------------------------
-    # ChromaDB client (singleton, reused across requests)
+    # Vector store (singleton, reused across requests)
     # ------------------------------------------------------------------
     try:
-        import chromadb
+        from src.ai_core.vector_store.factory import build_vector_store
 
-        chroma_client = chromadb.HttpClient(
-            host=settings.CHROMA_HOST,
-            port=settings.CHROMA_PORT,
+        vector_store = build_vector_store(settings)
+        healthy = await vector_store.health_check()
+        app.state.vector_store = vector_store
+        app.state.vector_store_provider = vector_store.store_name
+        logger.info(
+            "Vector store initialised (provider: %s, healthy: %s)",
+            vector_store.store_name,
+            healthy,
         )
-        # Warm the connection with a heartbeat call
-        heartbeat = chroma_client.heartbeat()
-        app.state.chroma_client = chroma_client
-        logger.info("ChromaDB client initialised (heartbeat: %s)", heartbeat)
     except Exception as exc:
-        logger.warning("ChromaDB initialisation failed: %s. Vector search will be unavailable.", exc)
-        app.state.chroma_client = None
+        logger.warning("Vector store initialisation failed: %s. Vector search will be unavailable.", exc)
+        app.state.vector_store = None
+        app.state.vector_store_provider = settings.VECTOR_STORE_PROVIDER
 
     # ------------------------------------------------------------------
     # Embedding provider warmup

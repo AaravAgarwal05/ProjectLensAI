@@ -78,7 +78,7 @@ uploads, SSE parsing) — not React components. Config: `vitest.config.ts` (`env
 - Chroma: `tests/vector_store/test_chroma_store.py` uses a real **ephemeral** `chromadb.Client()`;
   retrieval tests use canned `MagicMock` query dicts
 - RAGChatService (`tests/services/test_rag_chat_service.py`): patches
-  `build_embedding_provider`, `build_llm_provider`, `_get_chroma_client`, and the Redis cache —
+  `build_embedding_provider`, `build_llm_provider`, `build_vector_store`, and the Redis cache —
   covers answer flow, multi-report merge, cache hit/miss/fallback
 
 ---
