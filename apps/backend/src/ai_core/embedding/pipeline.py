@@ -118,6 +118,8 @@ class EmbeddingPipeline:
             # the factory constructs it with the class default otherwise.
             provider_params.setdefault("base_url", cfg.ollama_base_url)
             provider_params.setdefault("model_name", cfg.ollama_model)
+        elif provider_name == "gemini":
+            provider_params.setdefault("model_name", cfg.gemini_model)
         embedder.configure(provider_params)
 
         if not chunks:

@@ -22,6 +22,7 @@ class EmbeddingConfiguration:
         cache_folder: Model cache directory (optional).
         ollama_base_url: Ollama server URL (default: ``"http://localhost:11434"``).
         ollama_model: Ollama model name (default: ``"nomic-embed-text"``).
+        gemini_model: Google Gemini embedding model (default ``"text-embedding-004"``).
         timeout: HTTP request timeout in seconds (default: 60).
         extra: Provider-specific overrides.
     """
@@ -34,6 +35,7 @@ class EmbeddingConfiguration:
     cache_folder: str | None = None
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "nomic-embed-text"
+    gemini_model: str = "text-embedding-004"
     timeout: int = 60
     extra: dict[str, Any] = field(default_factory=dict)
 

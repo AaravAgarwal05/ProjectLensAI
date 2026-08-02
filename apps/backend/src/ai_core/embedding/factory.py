@@ -16,6 +16,8 @@ _PROVIDER_ALIASES: dict[str, str] = {
     "sentence-transformer": "sentence_transformers",
     "st": "sentence_transformers",
     "ollama": "ollama",
+    "gemini": "gemini",
+    "google": "gemini",
     "default": "sentence_transformers",
 }
 

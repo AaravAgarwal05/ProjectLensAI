@@ -403,6 +403,7 @@ class ProcessingService:
             from src.ai_core.embedding.registry import EmbeddingRegistry
 
             emb_registry = EmbeddingRegistry()
+            from src.ai_core.embedding.providers.gemini import GeminiEmbeddingProvider
             from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
             from src.ai_core.embedding.providers.sentence_transformer import (
                 SentenceTransformerProvider,
@@ -410,6 +411,7 @@ class ProcessingService:
 
             emb_registry.register("sentence_transformer", SentenceTransformerProvider)
             emb_registry.register("ollama", OllamaEmbeddingProvider)
+            emb_registry.register("gemini", GeminiEmbeddingProvider)
 
             emb_factory = EmbeddingFactory(emb_registry)
             embed_pipeline = EmbeddingPipeline(factory=emb_factory)
