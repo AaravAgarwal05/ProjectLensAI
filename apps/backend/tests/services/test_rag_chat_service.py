@@ -9,7 +9,6 @@ import pytest
 from src.ai_core.llm.models import LLMResponse
 from src.services.rag_chat_service import RAGChatService
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -56,10 +55,8 @@ def _patched_service(embedder=None, llm=None, collections=None):
 
     class _Ctx:
         async def __aenter__(self):
-            self._p1 = patch("src.services.rag_chat_service.OllamaEmbeddingProvider", return_value=embedder)
-            self._p2 = patch("src.services.rag_chat_service.GoogleProvider", return_value=llm)
-            self._p3 = patch("src.services.rag_chat_service.OllamaProvider", return_value=llm)
-            self._p5 = patch("src.services.rag_chat_service.OpenCodeZenProvider", return_value=llm)
+            self._p1 = patch("src.services.rag_chat_service.build_embedding_provider", return_value=embedder)
+            self._p2 = patch("src.services.rag_chat_service.build_llm_provider", return_value=llm)
             self._p4 = patch.object(
                 RAGChatService,
                 "_get_chroma_client",
@@ -67,8 +64,6 @@ def _patched_service(embedder=None, llm=None, collections=None):
             )
             self._p1.start()
             self._p2.start()
-            self._p3.start()
-            self._p5.start()
             self._p4.start()
             self.service = RAGChatService(top_k=5)
             return self.service
@@ -76,8 +71,6 @@ def _patched_service(embedder=None, llm=None, collections=None):
         async def __aexit__(self, *exc):
             self._p1.stop()
             self._p2.stop()
-            self._p3.stop()
-            self._p5.stop()
             self._p4.stop()
 
     return _Ctx()

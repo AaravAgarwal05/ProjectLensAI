@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 
 from src.ai_core.llm.providers.fallback import FallbackLLMProvider
-from src.ai_core.llm.registry import LLMRegistry
+from src.ai_core.llm.registry import default_llm_registry
 from src.config.logging import configure_logging
 from src.config.settings import get_settings
 from src.database.session import init_db
@@ -55,9 +55,9 @@ async def bootstrap_app(app: FastAPI) -> None:
     # ------------------------------------------------------------------
     # LLM provider registration
     # ------------------------------------------------------------------
-    _registry = LLMRegistry()
+    _registry = default_llm_registry()
     _registry.register("fallback", FallbackLLMProvider)
-    logger.info("Registered LLM provider: fallback")
+    logger.info("Registered LLM providers: %s", _registry.list_names())
     # Attach to app state for downstream use
     app.state.llm_registry = _registry
 
@@ -83,13 +83,10 @@ async def bootstrap_app(app: FastAPI) -> None:
     # Embedding provider warmup
     # ------------------------------------------------------------------
     try:
-        from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
+        from src.ai_core.embedding.factory import build_embedding_provider
 
-        embedder = OllamaEmbeddingProvider(
-            model_name="nomic-embed-text",
-            base_url=settings.ollama_base_url,
-        )
-        # Probe dimensions and warm model
+        embedder = build_embedding_provider()
+        # Probe dimensions and warm the provider
         dims = await embedder.embed("warmup")
         app.state.embedding_provider = embedder
         logger.info("Embedding provider initialised (dims: %d)", len(dims))

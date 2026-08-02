@@ -398,21 +398,13 @@ class ProcessingService:
                 provider_names.get(embedding_provider, embedding_provider),
             )
 
-            from src.ai_core.embedding.factory import EmbeddingFactory
-            from src.ai_core.embedding.pipeline import EmbeddingPipeline
-            from src.ai_core.embedding.registry import EmbeddingRegistry
-
-            emb_registry = EmbeddingRegistry()
-            from src.ai_core.embedding.providers.gemini import GeminiEmbeddingProvider
-            from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
-            from src.ai_core.embedding.providers.sentence_transformer import (
-                SentenceTransformerProvider,
+            from src.ai_core.embedding.factory import (
+                EmbeddingFactory,
+                default_embedding_registry,
             )
+            from src.ai_core.embedding.pipeline import EmbeddingPipeline
 
-            emb_registry.register("sentence_transformer", SentenceTransformerProvider)
-            emb_registry.register("ollama", OllamaEmbeddingProvider)
-            emb_registry.register("gemini", GeminiEmbeddingProvider)
-
+            emb_registry = default_embedding_registry()
             emb_factory = EmbeddingFactory(emb_registry)
             embed_pipeline = EmbeddingPipeline(factory=emb_factory)
             embed_result = await embed_pipeline.run(

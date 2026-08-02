@@ -15,6 +15,7 @@ import {
   EMBEDDING_OPTIONS,
   DEFAULT_PREFERENCES,
   type ProcessingPreferences,
+  type ProviderOption,
 } from '@/services/settings'
 
 /* ─── animation helpers ─── */
@@ -52,6 +53,47 @@ const TABS: TabDef[] = [
   { id: 'appearance', label: 'Appearance', icon: 'palette' },
   { id: 'system', label: 'System Status', icon: 'monitoring' },
 ]
+
+/* ─── provider option card ─── */
+
+function ProviderOptionButton({
+  opt,
+  selected,
+  onSelect,
+}: {
+  opt: ProviderOption
+  selected: boolean
+  onSelect: () => void
+}) {
+  const testing = opt.status === 'testing'
+  return (
+    <button
+      key={opt.value}
+      type="button"
+      onClick={onSelect}
+      disabled={testing}
+      title={testing ? 'Currently under testing' : undefined}
+      className={`relative flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
+        selected
+          ? 'border-primary bg-primary-container/10 text-primary'
+          : testing
+            ? 'cursor-not-allowed border-outline-variant/40 text-on-surface-variant/50'
+            : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
+      }`}
+    >
+      <Icon size="18px" fill={selected}>
+        check_circle
+      </Icon>
+      <span className="font-bold">{opt.label}</span>
+      <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
+      {testing && (
+        <span className="absolute -top-2 right-2 rounded-full bg-outline-variant/30 px-2 py-0.5 text-[10px] font-semibold text-on-surface-variant">
+          Under testing
+        </span>
+      )}
+    </button>
+  )
+}
 
 /* ─── main component ─── */
 
@@ -402,21 +444,12 @@ function AIConfigTab() {
             </p>
             <div className="grid grid-cols-3 gap-sm">
               {LLM_OPTIONS.map((opt) => (
-                <button
+                <ProviderOptionButton
                   key={opt.value}
-                  onClick={() => setLlmProvider(opt.value)}
-                  className={`flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
-                    llmProvider === opt.value
-                      ? 'border-primary bg-primary-container/10 text-primary'
-                      : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  <Icon size="18px" fill={llmProvider === opt.value}>
-                    check_circle
-                  </Icon>
-                  <span className="font-bold">{opt.label}</span>
-                  <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
-                </button>
+                  opt={opt}
+                  selected={llmProvider === opt.value}
+                  onSelect={() => setLlmProvider(opt.value)}
+                />
               ))}
             </div>
           </div>
@@ -470,23 +503,14 @@ function AIConfigTab() {
             <p className="font-body-md text-sm text-on-surface-variant mb-sm">
               Controls how document text is converted to vector embeddings.
             </p>
-            <div className="grid grid-cols-2 gap-sm">
+            <div className="grid grid-cols-3 gap-sm">
               {EMBEDDING_OPTIONS.map((opt) => (
-                <button
+                <ProviderOptionButton
                   key={opt.value}
-                  onClick={() => setEmbeddingProvider(opt.value)}
-                  className={`flex flex-col items-center gap-1 rounded-lg border px-md py-sm font-body-md transition-colors ${
-                    embeddingProvider === opt.value
-                      ? 'border-primary bg-primary-container/10 text-primary'
-                      : 'border-outline-variant text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  <Icon size="18px" fill={embeddingProvider === opt.value}>
-                    check_circle
-                  </Icon>
-                  <span className="font-bold">{opt.label}</span>
-                  <span className="text-[11px] text-on-surface-variant">{opt.description}</span>
-                </button>
+                  opt={opt}
+                  selected={embeddingProvider === opt.value}
+                  onSelect={() => setEmbeddingProvider(opt.value)}
+                />
               ))}
             </div>
           </div>

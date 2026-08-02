@@ -22,6 +22,51 @@ _PROVIDER_ALIASES: dict[str, str] = {
 }
 
 
+_default_embedding_registry: EmbeddingRegistry | None = None
+
+
+def default_embedding_registry() -> EmbeddingRegistry:
+    """Return a shared registry with every bundled embedding provider."""
+    global _default_embedding_registry  # noqa: PLW0603
+    if _default_embedding_registry is None:
+        from src.ai_core.embedding.providers.gemini import GeminiEmbeddingProvider
+        from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
+        from src.ai_core.embedding.providers.sentence_transformer import (
+            SentenceTransformerProvider,
+        )
+
+        _default_embedding_registry = EmbeddingRegistry()
+        _default_embedding_registry.register("sentence_transformer", SentenceTransformerProvider)
+        _default_embedding_registry.register("ollama", OllamaEmbeddingProvider)
+        _default_embedding_registry.register("gemini", GeminiEmbeddingProvider)
+    return _default_embedding_registry
+
+
+def build_embedding_provider(config: EmbeddingConfiguration | None = None) -> EmbeddingProvider:
+    """Create the configured embedding provider — the single selection point.
+
+    Call sites never construct providers directly; they ask for "the
+    configured one" and get it. Provider-specific defaults (Ollama
+    URL/model, Gemini model) are threaded the same way ``EmbeddingPipeline``
+    does, so selection is pure configuration.
+
+    Args:
+        config: Provider configuration. ``EmbeddingConfiguration.default()``
+                when omitted (currently ``gemini``).
+    """
+    cfg = config or EmbeddingConfiguration.default()
+    factory = EmbeddingFactory(default_embedding_registry())
+    provider = factory.create(cfg.provider)
+    params = dict(cfg.extra)
+    if cfg.provider == "ollama":
+        params.setdefault("base_url", cfg.ollama_base_url)
+        params.setdefault("model_name", cfg.ollama_model)
+    elif cfg.provider == "gemini":
+        params.setdefault("model_name", cfg.gemini_model)
+    provider.configure(params)
+    return provider
+
+
 class EmbeddingFactory:
     """Creates embedding provider instances from configuration.
 

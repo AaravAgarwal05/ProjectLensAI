@@ -13,12 +13,10 @@ import logging
 import time
 from typing import Any
 
-from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
+from src.ai_core.embedding.factory import build_embedding_provider
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.models import LLMRequest
-from src.ai_core.llm.providers.google import GoogleProvider
-from src.ai_core.llm.providers.ollama import OllamaProvider
-from src.ai_core.llm.providers.opencode_zen import OpenCodeZenProvider
+from src.ai_core.llm.registry import build_llm_provider
 from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -54,26 +52,10 @@ class RAGChatService:
         self._chroma_host = chroma_host or _settings.CHROMA_HOST
         self._chroma_port = chroma_port or _settings.CHROMA_PORT
         self._top_k = top_k
-        self._embedding_provider = OllamaEmbeddingProvider(
-            model_name="nomic-embed-text",
-            base_url=_settings.ollama_base_url,
-        )
-
-        # Pick LLM provider based on config
-        cfg = LLMConfiguration()
-        if cfg.provider == "google":
-            self._llm_provider = GoogleProvider(config=cfg)
-        elif cfg.provider == "opencode_zen":
-            self._llm_provider = OpenCodeZenProvider(config=LLMConfiguration(
-                base_url="https://opencode.ai/zen/v1",
-                model_name="deepseek-v4-flash-free",
-            ))
-        else:
-            self._llm_provider = OllamaProvider(config=LLMConfiguration(
-                base_url=_settings.ollama_base_url,
-                model_name="llama3.2:1b",
-            ))
-        self._llm_config = cfg
+        # Providers are resolved from configuration — never constructed here.
+        self._embedding_provider = build_embedding_provider()
+        self._llm_config = LLMConfiguration()
+        self._llm_provider = build_llm_provider(self._llm_config)
         self._chroma_client: Any | None = None
 
     # ------------------------------------------------------------------

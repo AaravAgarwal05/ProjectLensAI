@@ -14,7 +14,7 @@ class EmbeddingConfiguration:
     Sensible defaults are provided for every parameter.
 
     Attributes:
-        provider: Default provider name (``"sentence_transformers"``).
+        provider: Default provider name (``"gemini"``).
         model_name: Default model name (``"BAAI/bge-small-en-v1.5"``).
         batch_size: Max texts per batch (default: 32).
         device: Torch device (``"cpu"``, ``"cuda"``). Default ``"cpu"``.
@@ -27,7 +27,7 @@ class EmbeddingConfiguration:
         extra: Provider-specific overrides.
     """
 
-    provider: str = "sentence_transformers"
+    provider: str = "gemini"
     model_name: str = "BAAI/bge-small-en-v1.5"
     batch_size: int = 32
     device: str = "cpu"

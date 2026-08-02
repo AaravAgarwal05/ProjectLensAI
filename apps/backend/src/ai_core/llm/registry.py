@@ -7,6 +7,48 @@ import logging
 from src.ai_core.llm.base import LLMProvider
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.exceptions import ProviderNotFoundError
+from src.ai_core.llm.providers.google import GoogleProvider
+from src.ai_core.llm.providers.ollama import OllamaProvider
+from src.ai_core.llm.providers.opencode_zen import OpenCodeZenProvider
+from src.config.settings import get_settings
+
+_BUNDLED: tuple[tuple[str, type[LLMProvider]], ...] = (
+    ("google", GoogleProvider),
+    ("ollama", OllamaProvider),
+    ("opencode_zen", OpenCodeZenProvider),
+)
+
+_default_llm_registry: LLMRegistry | None = None
+
+
+def default_llm_registry() -> LLMRegistry:
+    """Return a shared registry with every bundled LLM provider registered."""
+    global _default_llm_registry  # noqa: PLW0603
+    if _default_llm_registry is None:
+        _default_llm_registry = LLMRegistry()
+        for name, cls in _BUNDLED:
+            _default_llm_registry.register(name, cls)
+    return _default_llm_registry
+
+
+def build_llm_provider(config: LLMConfiguration | None = None) -> LLMProvider:
+    """Create the configured LLM provider — the single selection point.
+
+    Applies provider-specific defaults (Ollama URL/model) and constructs a
+    fresh provider per call: instances hold mutable config, so caching them
+    across requests would leak model overrides between conversations.
+
+    Args:
+        config: Provider configuration. ``LLMConfiguration()`` (env-driven,
+                default ``opencode_zen``) when omitted.
+    """
+    cfg = config or LLMConfiguration()
+    if cfg.provider == "ollama":
+        cfg = cfg.merge(
+            {"base_url": get_settings().ollama_base_url, "model_name": "llama3.2:1b"}
+        )
+    cls = default_llm_registry().get_class(cfg.provider)
+    return cls(config=cfg)
 
 logger = logging.getLogger(__name__)
 

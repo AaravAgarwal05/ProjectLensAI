@@ -13,6 +13,19 @@ export interface ProcessingPreferences {
   embedding_provider: string
 }
 
+/**
+ * A selectable provider option.
+ *
+ * `status: 'testing'` marks providers that are wired end-to-end but not yet
+ * GA — they render greyed-out in the UI and can't be selected.
+ */
+export interface ProviderOption {
+  value: string
+  label: string
+  description: string
+  status?: 'testing'
+}
+
 interface PreferencesResponse {
   preferences: ProcessingPreferences
 }
@@ -23,7 +36,7 @@ export const DEFAULT_PREFERENCES: ProcessingPreferences = {
   chunking_strategy: 'heading_aware',
   llm_provider: 'opencode_zen',
   retrieval_strategy: 'hybrid',
-  embedding_provider: 'ollama',
+  embedding_provider: 'gemini',
 }
 
 // ─── Options + descriptions (mirrored from backend capabilities) ─────────────
@@ -34,10 +47,10 @@ export const CHUNKING_OPTIONS = [
   { value: 'fixed', label: 'Fixed-size', description: 'Uniform fixed-size chunks, with overlap' },
 ]
 
-export const LLM_OPTIONS = [
+export const LLM_OPTIONS: ProviderOption[] = [
   { value: 'opencode_zen', label: 'OpenCode Zen', description: 'DeepSeek v4 Flash (free) — default' },
-  { value: 'google', label: 'Google Gemini', description: 'Gemini 2.5 Flash — cloud LLM' },
-  { value: 'ollama', label: 'Ollama', description: 'Local LLM — private, offline' },
+  { value: 'google', label: 'Google Gemini', description: 'Gemini 2.5 Flash — cloud LLM', status: 'testing' },
+  { value: 'ollama', label: 'Ollama', description: 'Local LLM — private, offline', status: 'testing' },
 ]
 
 export const RETRIEVAL_OPTIONS = [
@@ -46,9 +59,10 @@ export const RETRIEVAL_OPTIONS = [
   { value: 'multi_query', label: 'Multi-query', description: 'Expands query into variants — broadest recall' },
 ]
 
-export const EMBEDDING_OPTIONS = [
-  { value: 'ollama', label: 'Ollama', description: 'nomic-embed-text via Ollama — default' },
-  { value: 'sentence_transformer', label: 'Sentence Transformers', description: 'On-device embeddings — no external server' },
+export const EMBEDDING_OPTIONS: ProviderOption[] = [
+  { value: 'gemini', label: 'Google Gemini', description: 'text-embedding-004 — default' },
+  { value: 'ollama', label: 'Ollama', description: 'nomic-embed-text via Ollama — local', status: 'testing' },
+  { value: 'sentence_transformer', label: 'Sentence Transformers', description: 'On-device embeddings — no external server', status: 'testing' },
 ]
 
 export const SettingsService = {

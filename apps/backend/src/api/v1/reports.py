@@ -419,12 +419,9 @@ async def search_report_chunks(
             detail=f"ChromaDB collection for report {report_id} not found",
         ) from None
 
-    from src.ai_core.embedding.providers.ollama import OllamaEmbeddingProvider
+    from src.ai_core.embedding.factory import build_embedding_provider
 
-    embedder = OllamaEmbeddingProvider(
-        model_name="nomic-embed-text",
-        base_url=settings.ollama_base_url,
-    )
+    embedder = build_embedding_provider()
     query_vec = await embedder.embed(body.query)
 
     results = collection.query(

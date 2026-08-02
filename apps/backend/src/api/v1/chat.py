@@ -25,9 +25,7 @@ from src.ai_core.context.pipeline import ContextAssemblyPipeline
 from src.ai_core.context.strategies.single_document import SingleDocumentStrategy
 from src.ai_core.llm.configuration import LLMConfiguration
 from src.ai_core.llm.prompt_builder import PromptBuilder
-from src.ai_core.llm.providers.google import GoogleProvider
-from src.ai_core.llm.providers.ollama import OllamaProvider
-from src.ai_core.llm.providers.opencode_zen import OpenCodeZenProvider
+from src.ai_core.llm.registry import build_llm_provider
 from src.ai_core.tracing.models import RequestTrace
 from src.api.dependencies import get_current_user, get_db
 from src.api.rate_limiter import limiter
@@ -90,24 +88,12 @@ def _build_orchestrator(
     should fall back to a placeholder response).
     """
     try:
-        from src.config.settings import get_settings
-
-        _s = get_settings()
         llm_config = LLMConfiguration()
-        if llm_config.provider == "ollama":
-            llm_config = llm_config.merge({"base_url": _s.ollama_base_url, "model_name": "llama3.2:1b"})
-        if llm_config.provider == "opencode_zen":
-            llm_config = llm_config.merge({"base_url": "https://opencode.ai/zen/v1", "model_name": "deepseek-v4-flash-free"})
         if model_name:
             llm_config = llm_config.merge({"model_name": model_name})
 
-        # Instantiate the right provider based on config
-        if llm_config.provider == "google":
-            llm_provider = GoogleProvider(config=llm_config)
-        elif llm_config.provider == "opencode_zen":
-            llm_provider = OpenCodeZenProvider(config=llm_config)
-        else:
-            llm_provider = OllamaProvider(config=llm_config)
+        # Provider resolved from config — never hand-picked here.
+        llm_provider = build_llm_provider(llm_config)
         prompt_builder = PromptBuilder(config=llm_config)
         citation_engine = CitationEngine()
         validation_engine = ChatValidationEngine()
