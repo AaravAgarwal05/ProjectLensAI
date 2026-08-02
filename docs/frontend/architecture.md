@@ -16,7 +16,8 @@ Framework, styling system, components, data layer, and state management.
 | Fonts | Geist (sans), JetBrains Mono, Fraunces (logo), Material Symbols Outlined (icons) |
 
 **Scripts** (`apps/frontend/package.json`): `dev`, `build`, `start`, `lint` (eslint),
-`format` (prettier), `typecheck` (`tsc --noEmit`). **No test script.**
+`format` (prettier), `typecheck` (`tsc --noEmit`), `test` (Vitest, node env — 58 tests over
+`src/lib` + `src/services`; see [Testing](../testing/overview.md#frontend-test-layout)).
 
 ### Styling: Material-3 token system
 

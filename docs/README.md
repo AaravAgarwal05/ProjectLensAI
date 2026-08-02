@@ -62,7 +62,7 @@ Full walkthroughs: [Development Run Guide](development/run-dev.md) ·
 
 | Page | Covers |
 |------|--------|
-| [**Testing Overview**](testing/overview.md) | What's tested (~796 tests), how to run, mocking patterns, coverage gaps |
+| [**Testing Overview**](testing/overview.md) | What's tested (~796 backend + 58 frontend tests), how to run, mocking patterns, coverage gaps |
 | [**Coding Standards**](development/coding-standards.md) | Python/TS conventions, linting, validation rules |
 | [**Getting Started**](development/getting-started.md) | 5-minute manual setup |
 

@@ -11,7 +11,7 @@ What is tested, how the suite is wired, and how to run it.
 | Backend (`apps/backend/tests`) | 82 | ~796 | pytest, async-native |
 | `packages/core/tests` | 1 | 55 | config, events, registry, utils |
 | `packages/shared/tests` | 1 | 25 | domain models |
-| Frontend | **0** | **0** | no test runner configured |
+| Frontend (`apps/frontend/src`) | 7 | 58 | Vitest, node env, data layer only |
 
 ---
 
@@ -31,6 +31,26 @@ document processing; subdirectories mirror `src/ai_core/`:
 | `tests/retrieval/` | ~89 | dense, hybrid (BM25), multi_query, rerankers (mmr, cross-encoder, none), pipeline |
 | `tests/services/` | ~12 | RAGChatService end-to-end with mocked deps |
 | `tests/vector_store/` | ~63 | chroma store, pgvector store (failure paths), indexing, registry |
+
+---
+
+## Frontend test layout
+
+`apps/frontend` runs **Vitest** in the node environment (no jsdom). Tests cover the **data
+layer** — pure utilities and the HTTP services (query building, snake→camel mappers, FormData
+uploads, SSE parsing) — not React components. Config: `vitest.config.ts` (`environment: 'node'`,
+`@` → `./src` alias, include `src/**/*.test.ts`). HTTP is mocked by stubbing global `fetch` with
+`vi.stubGlobal`; shared helpers live in `src/test/helpers.ts`.
+
+| File | Covers |
+|------|--------|
+| `src/lib/__tests__/utils.test.ts` | `cn`, `formatDate/DateTime`, `truncate`, `formatBytes`, `generateId` |
+| `src/lib/__tests__/api.test.ts` | `apiRequest` — JSON/FormData bodies, 204 → undefined, error envelope → `ApiError`, statusText fallback |
+| `src/services/__tests__/auth.test.ts` | login/register/logout/me/refresh + snake→camel user mapper |
+| `src/services/__tests__/reports.test.ts` | list (query params + pagination), upload FormData + error codes, update/delete/deleteMany, versions |
+| `src/services/__tests__/collections.test.ts` | list/create/update/delete, add/remove report routes |
+| `src/services/__tests__/chat.test.ts` | sessions, messages, SSE `streamMessage` (token/done/error/malformed) |
+| `src/services/__tests__/settings.test.ts` | preferences fetch + default fallback, provider catalogs |
 
 ---
 
@@ -78,6 +98,12 @@ cd apps/backend && uv run pytest --cov=src --cov-report=term-missing
 # Packages (run from each package dir — see note below)
 cd packages/core    && uv run pytest tests/ -q      # 55 tests
 cd packages/shared  && uv run pytest tests/ -q      # 25 tests
+
+# Frontend (Vitest, node env — 58 tests)
+cd apps/frontend && npm test
+
+# One frontend file
+cd apps/frontend && npx vitest run src/services/__tests__/chat.test.ts
 ```
 
 > **Do not run `uv run pytest -q` from the repo root.** Root `pyproject.toml` lists all three
@@ -85,8 +111,8 @@ cd packages/shared  && uv run pytest tests/ -q      # 25 tests
 > makes one shadow the others and the packages suites fail with `No module named 'tests.test_*'`.
 > This is a pre-existing repo quirk (CI never runs the root command).
 
-> `make test` also runs `npm test` in the frontend, which **fails** (no frontend test script
-> configured). Prefer `uv run pytest` directly.
+> `make test` (`scripts/test.sh`) runs the backend pytest suite then `npm test` in the frontend —
+> both legs now pass. The packages suites are not part of `make test` (run them from their dirs).
 
 CI (`.github/workflows/ci.yml`) provisions real pgvector + redis services, runs
 `alembic upgrade head`, then `pytest --cov=src -x` — **from `apps/backend` only**, against them,
@@ -97,7 +123,7 @@ of CI.
 
 ## Coverage gaps (documented)
 
-- **Frontend: zero tests** — no runner, no `__tests__`, no `*.test.*`. CI "test-frontend" is only `npm run build`
+- **Frontend: no component or E2E tests** — Vitest covers the data layer (58 tests, node env); React components are untested (no jsdom) and there are no browser tests. CI "test-frontend" is still only `npm run build` (the Vitest suite runs via `npm test` / `make test`, not CI)
 - **No true integration tests** against real Postgres/Chroma/Redis — `test_pgvector_store` asserts only graceful-failure paths against a dead DSN
 - **`ai_core/eval/`** (LLM judge, `eval_runs` API, `scripts/eval_rag.py`) — untested; the eval script is run manually
 - **`ai_core/tracing/`** — untested

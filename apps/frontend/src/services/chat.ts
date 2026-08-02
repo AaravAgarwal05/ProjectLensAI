@@ -256,18 +256,20 @@ export const ChatService = {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const data = line.slice(6)
+          let parsed: Record<string, unknown>
           try {
-            const parsed = JSON.parse(data)
-            if (parsed.type === 'token' && parsed.text) {
-              buffer.push(parsed.text)
-              onChunk(parsed.text)
-            } else if (parsed.type === 'done') {
-              finalSessionId = parsed.session_id ?? sessionId
-            } else if (parsed.type === 'error') {
-              throw new ApiError(parsed.message ?? 'Stream error', 500)
-            }
+            parsed = JSON.parse(data)
           } catch {
-            // skip malformed JSON lines
+            continue // skip malformed JSON lines
+          }
+          if (parsed.type === 'token' && parsed.text) {
+            buffer.push(String(parsed.text))
+            onChunk(String(parsed.text))
+          } else if (parsed.type === 'done') {
+            finalSessionId = String(parsed.session_id ?? sessionId)
+          } else if (parsed.type === 'error') {
+            // Must not be swallowed by the JSON-parse catch above.
+            throw new ApiError(String(parsed.message ?? 'Stream error'), 500)
           }
         }
       }

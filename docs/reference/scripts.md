@@ -85,7 +85,7 @@ Tail compose logs. `--prod` targets the prod compose file. `scripts/logs.sh post
 
 ### `scripts/test.sh`
 1. `uv run pytest -v --tb=short --strict-markers` in `apps/backend`
-2. `npm test` in `apps/frontend` (no-op — frontend has no test runner configured)
+2. `npm test` in `apps/frontend` — Vitest suite (58 tests over `src/lib` + `src/services`)
 
 ### `scripts/deploy.sh`
 Production deploy (guards + Docker):
