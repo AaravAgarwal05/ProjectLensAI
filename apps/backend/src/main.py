@@ -31,7 +31,7 @@ def _init_sentry(settings: AppSettings) -> None:
 
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
-            environment=settings.ENV,
+            environment=settings.environment,
             traces_sample_rate=0.1,
         )
     except ImportError:

@@ -34,7 +34,7 @@ async def bootstrap_app(app: FastAPI) -> None:
         "Starting %s v%s in %s mode",
         settings.PROJECT_NAME,
         settings.VERSION,
-        settings.ENV,
+        settings.environment,
     )
 
     try:

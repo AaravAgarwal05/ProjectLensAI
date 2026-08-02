@@ -14,6 +14,14 @@ class AppSettings(BaseSettings):
     VERSION: str = "0.1.0"
     DEBUG: bool = False
     ENV: str = "development"
+    # Deployment environment — docker-compose.prod.yml sets APP_ENV, not ENV.
+    # ``environment`` (below) prefers APP_ENV when present.
+    APP_ENV: str = ""
+
+    @property
+    def environment(self) -> str:
+        """Effective deployment environment (APP_ENV wins over ENV)."""
+        return self.APP_ENV or self.ENV
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/projectlens"
@@ -76,12 +84,16 @@ class AppSettings(BaseSettings):
 
     @model_validator(mode="after")
     def _fail_fast_on_insecure_secret_key(self) -> "AppSettings":
-        """Refuse to boot with the shipped insecure SECRET_KEY default.
+        """Refuse to boot in production with the shipped insecure SECRET_KEY default.
 
         The hardcoded default is public in the repository — signing JWTs with it
-        would let anyone forge tokens. Require an explicit override.
+        would let anyone forge tokens. Enforced only in production: dev, test,
+        and migration tooling (alembic env.py) legitimately run without one.
         """
-        if self.SECRET_KEY == "change-this-in-production":
+        if (
+            self.environment == "production"
+            and self.SECRET_KEY == "change-this-in-production"
+        ):
             raise ValueError(
                 "SECRET_KEY is set to the known-insecure default. "
                 "Generate a strong random key (e.g. `openssl rand -hex 64`) and "
