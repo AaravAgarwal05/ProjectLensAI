@@ -18,8 +18,9 @@ For a detailed step-by-step guide, see [Development Run Guide](run-dev.md).
 ## Manual Setup
 
 ```bash
-# 1. Environment
-cp config/.env.local.example .env.local
+# 1. Environment (see run-dev.md for details)
+cp apps/backend/.env.example apps/backend/.env.local   # backend env (native run)
+cp config/.env.local.example .env.local                # root env (docker-compose infra)
 
 # 2. Start infrastructure (PostgreSQL, ChromaDB, Redis)
 docker compose -f docker-compose.yml up -d

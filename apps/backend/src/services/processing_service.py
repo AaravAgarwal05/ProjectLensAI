@@ -226,7 +226,7 @@ class ProcessingService:
 
             # ── Step 5: Chunk + embed ─────────────────────────────────────
             chunking_strategy = "heading_aware"
-            embedding_provider = "ollama"
+            embedding_provider = "gemini"
             if preferences and isinstance(preferences, dict):
                 chunking_strategy = preferences.get("chunking_strategy", chunking_strategy)
                 embedding_provider = preferences.get("embedding_provider", embedding_provider)
@@ -392,6 +392,7 @@ class ProcessingService:
             provider_names = {
                 "sentence_transformer": "Local (on-device, no internet needed)",
                 "ollama": "Cloud (via Ollama server)",
+                "gemini": "Cloud (via Google Gemini)",
             }
             logger.info(
                 "  └── You chose: %s",

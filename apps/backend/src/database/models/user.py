@@ -44,11 +44,11 @@ DEFAULT_PREFERENCES = {
     "llm_provider": "opencode_zen",
     "llm_model": "deepseek-v4-flash-free",
     "retrieval_strategy": "hybrid",
-    "embedding_provider": "ollama",
+    "embedding_provider": "gemini",
     "chunk_size": 1000,
     "chunk_overlap": 200,
     "min_chunk_size": 100,
-    "embedding_model": "nomic-embed-text",
+    "embedding_model": "text-embedding-004",
     "top_k": 5,
 }
 

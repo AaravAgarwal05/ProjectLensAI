@@ -47,11 +47,17 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ### 2. Environment Variables
 
+`./scripts/dev.sh` handles this automatically. Manually:
+
 ```bash
+# Backend env (read by pydantic-settings when running natively)
+cp apps/backend/.env.example apps/backend/.env.local
+
+# Root .env.local (used by docker-compose.yml for the infra services)
 cp config/.env.local.example .env.local
 ```
 
-Key dev defaults (from `.env.local`):
+Key dev defaults (from `apps/backend/.env.local`):
 | Variable | Default | Notes |
 |----------|---------|-------|
 | `APP_ENV` | `development` | Enables debug endpoints |
@@ -134,8 +140,9 @@ The frontend is available at: http://localhost:3000
 # Health check
 curl http://localhost:8000/api/v1/health
 
-# Expected response:
-# {"status":"healthy","version":"0.1.0"}
+# Expected response shape:
+# {"status":"ok","version":"0.1.0","uptime":...,"dependencies":{...}}
+# status is "ok" | "degraded" | "down"
 ```
 
 ### Run Tests

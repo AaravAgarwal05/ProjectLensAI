@@ -22,7 +22,7 @@ class Report(UUIDMixin, TimestampMixin, Base):
     visibility: Column[str] = Column(String, nullable=False, default="private")
     year: Column[int | None] = Column(Integer, nullable=True)
     status: Column[str] = Column(String, nullable=False, default="draft", index=True)
-    storage_provider: Column[str] = Column(String, nullable=False, default="supabase")
+    storage_provider: Column[str] = Column(String, nullable=False, default="local")
     storage_path: Column[str | None] = Column(String, nullable=True)
     original_filename: Column[str | None] = Column(String, nullable=True)
     mime_type: Column[str | None] = Column(String, nullable=True)

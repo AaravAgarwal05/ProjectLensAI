@@ -4,20 +4,18 @@ Repositories and storage are mocked so that only the service-layer
 orchestration, validation rules, and error handling are exercised.
 """
 
-from unittest.mock import AsyncMock, MagicMock, Mock, call
+from unittest.mock import AsyncMock, MagicMock, call
 from uuid import uuid4
 
 import pytest
 from fastapi import UploadFile
 
 from src.api.exceptions import ProjectLensError
-from src.database.models import Report, ReportVersion
 from src.repository.report import ReportRepository
 from src.repository.version import VersionRepository
 from src.services.report_service import ReportService
 
 from .conftest import make_report, make_version
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -143,7 +141,7 @@ class TestCreateReport:
             visibility="internal",
             year=2025,
             status="uploaded",
-            storage_provider="supabase",
+            storage_provider="local",
             storage_path=store_path,
             original_filename="test.pdf",
             mime_type="application/pdf",

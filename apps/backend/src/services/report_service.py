@@ -87,7 +87,7 @@ class ReportService:
             visibility=visibility,
             year=year,
             status="uploaded",
-            storage_provider="supabase",
+            storage_provider=self._settings.STORAGE_PROVIDER,
             storage_path=storage_path,
             original_filename=file.filename,
             mime_type=mime_type,

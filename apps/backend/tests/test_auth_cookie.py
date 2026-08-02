@@ -88,9 +88,9 @@ async def test_me_resolves_user_from_cookie(
 
     monkeypatch.setattr(db_session, "async_session_factory", _fake_factory)
 
-    from src.auth.jwt import create_access_token
+    from src.api.v1.auth import _create_token
 
-    token = create_access_token({"sub": "user-1", "tv": 0})
+    token = _create_token("user-1", 0)
 
     response = await client.get(
         "/api/v1/auth/me",
